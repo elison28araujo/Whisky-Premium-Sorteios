@@ -50,6 +50,7 @@ import {
   Inbox,
   MessageCircle,
   QrCode,
+  Upload,
 } from "lucide-react";
 
 import { Campaign, Order } from "./types";
@@ -1666,25 +1667,73 @@ function AdminPanel({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-400">URL da Imagem do Banner (Principal)</label>
-              <input
-                type="text"
-                placeholder="https://exemplo.com/banner.png"
-                value={campaign.bannerImageUrl || ""}
-                onChange={(e) => setCampaign({ ...campaign, bannerImageUrl: e.target.value })}
-                className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
-              />
+              <label className="text-xs font-semibold text-zinc-400 font-sans">Imagem do Banner (Principal)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="https://exemplo.com/banner.png"
+                  value={campaign.bannerImageUrl || ""}
+                  onChange={(e) => setCampaign({ ...campaign, bannerImageUrl: e.target.value })}
+                  className="flex-1 rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
+                />
+                <label className="shrink-0 flex items-center justify-center p-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-amber-500 hover:bg-zinc-700 cursor-pointer transition">
+                  <Upload size={16} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 800000) { // ~800KB limit for Firestore safest storage
+                          alert("A imagem é muito grande. Tente uma imagem menor que 800KB para garantir o salvamento.");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setCampaign({ ...campaign, bannerImageUrl: reader.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-400">URL da Imagem Secundária (Caixa/Detalhe)</label>
-              <input
-                type="text"
-                placeholder="https://exemplo.com/caixa.png"
-                value={campaign.secondaryImageUrl || ""}
-                onChange={(e) => setCampaign({ ...campaign, secondaryImageUrl: e.target.value })}
-                className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
-              />
+              <label className="text-xs font-semibold text-zinc-400 font-sans">Imagem Secundária (Caixa/Detalhe)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="https://exemplo.com/caixa.png"
+                  value={campaign.secondaryImageUrl || ""}
+                  onChange={(e) => setCampaign({ ...campaign, secondaryImageUrl: e.target.value })}
+                  className="flex-1 rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
+                />
+                <label className="shrink-0 flex items-center justify-center p-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-amber-500 hover:bg-zinc-700 cursor-pointer transition">
+                  <Upload size={16} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 800000) {
+                          alert("A imagem é muito grande. Tente uma imagem menor que 800KB.");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setCampaign({ ...campaign, secondaryImageUrl: reader.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="space-y-1">
