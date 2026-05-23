@@ -152,10 +152,11 @@ export default function App() {
     const local = localStorage.getItem("whisky_premium_settings");
     if (local) {
       try {
-        return { ...DEFAULT_CAMPAIGN, ...JSON.parse(local) };
-      } catch (e) {
-        return DEFAULT_CAMPAIGN;
-      }
+        const parsed = JSON.parse(local);
+        if (parsed.updatedAt && parsed.updatedAt > 0) {
+          return { ...DEFAULT_CAMPAIGN, ...parsed };
+        }
+      } catch (e) {}
     }
     return DEFAULT_CAMPAIGN;
   });
@@ -192,7 +193,10 @@ export default function App() {
       const localCampaign = localStorage.getItem("whisky_premium_settings");
       if (localCampaign) {
         try {
-          setCampaign({ ...DEFAULT_CAMPAIGN, ...JSON.parse(localCampaign) });
+          const parsed = JSON.parse(localCampaign);
+          if (parsed.updatedAt && parsed.updatedAt > 0) {
+            setCampaign({ ...DEFAULT_CAMPAIGN, ...parsed });
+          }
         } catch (e) {}
       }
       const localOrders = localStorage.getItem("whisky_premium_orders");
@@ -231,12 +235,13 @@ export default function App() {
             } catch (e) {}
           }
 
-          // ONLY update local storage and react state if server is strictly newer
-          // or has the same signature of initial settings (0 vs 0)
-          if (serverUpdatedAt > localUpdatedAt || (serverUpdatedAt === 0 && localUpdatedAt === 0)) {
+          if (serverUpdatedAt > 0 && serverUpdatedAt > localUpdatedAt) {
             const loadedCampaign = { ...DEFAULT_CAMPAIGN, ...serverData };
             setCampaign(loadedCampaign);
             localStorage.setItem("whisky_premium_settings", JSON.stringify(loadedCampaign));
+          } else if (serverUpdatedAt === 0 && localUpdatedAt === 0) {
+            // Keep using the in-code DEFAULT_CAMPAIGN if neither admin nor local has saved
+            setCampaign({ ...DEFAULT_CAMPAIGN });
           }
         }
         setLoading(false);
@@ -259,7 +264,12 @@ export default function App() {
       const localCampaign = localStorage.getItem("whisky_premium_settings");
       if (localCampaign) {
         try {
-          setCampaign({ ...DEFAULT_CAMPAIGN, ...JSON.parse(localCampaign) });
+          const parsed = JSON.parse(localCampaign);
+          if (parsed.updatedAt && parsed.updatedAt > 0) {
+            setCampaign({ ...DEFAULT_CAMPAIGN, ...parsed });
+          } else {
+            setCampaign(DEFAULT_CAMPAIGN);
+          }
         } catch (e) {
           setCampaign(DEFAULT_CAMPAIGN);
         }
@@ -385,7 +395,7 @@ export default function App() {
   return (
     <div 
       className="min-h-screen font-sans bg-zinc-950 text-amber-50 pb-20 selection:bg-amber-500/20 selection:text-amber-200 bg-cover bg-center bg-fixed"
-      style={{ backgroundImage: `url(${bgBrasilParaAsset})` }}
+      style={{ backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.0), rgba(0, 0, 0, 0.1)), url(${bgBrasilParaAsset})` }}
     >
       
       {/* Main Header */}
