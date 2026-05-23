@@ -1361,46 +1361,34 @@ function AdminPanel({
     return filter === "all" ? orders : orders.filter((o) => o.status === filter);
   }, [orders, filter]);
 
-  // Handle Simulated and real admin authorization
+  // Handle real admin authorization strictly via Firebase
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
 
-    if (isDemoModeActive) {
-      // In interactive demo mode: bypass easily to premium simulation dashboard!
-      if (loginForm.email === "admin@demo.com" && loginForm.password === "123456") {
-        setAdminUser({ uid: "m-admin", email: "admin@demo.com" } as any);
-        triggerToast("Login Administrador Autorizado (Modo Demo)!");
-      } else {
-        setLoginError("Credenciais incorretas do modo de testes! Use o e-mail: admin@demo.com e senha: 123456");
-      }
-    } else {
-      if (!authInstance) {
-        setLoginError("Serviço de autenticação Firebase não disponível no momento. Tente usar o Modo de Testes.");
-        return;
-      }
-      try {
-        await signInWithEmailAndPassword(authInstance, loginForm.email, loginForm.password);
-        triggerToast("Sessão autenticada via Firebase!");
-      } catch (err: any) {
-        setLoginError(err.message || String(err));
-      }
+    if (!authInstance) {
+      setLoginError("Serviço de autenticação Firebase não disponível ou inativo. Verifique as configurações.");
+      return;
+    }
+    try {
+      await signInWithEmailAndPassword(authInstance, loginForm.email, loginForm.password);
+      triggerToast("Sessão autenticada via Firebase!");
+    } catch (err: any) {
+      setLoginError(err.message || String(err));
     }
   };
 
   const handleLogout = async () => {
-    if (isDemoModeActive) {
+    if (!authInstance) {
+      setAdminUser(null);
+      return;
+    }
+    try {
+      await signOut(authInstance);
       setAdminUser(null);
       triggerToast("Sessão finalizada!");
-    } else {
-      if (!authInstance) return;
-      try {
-        await signOut(authInstance);
-        setAdminUser(null);
-        triggerToast("Firebase desconectado!");
-      } catch (err: any) {
-        alert("Erro ao realizar logout: " + err.message);
-      }
+    } catch (err: any) {
+      alert("Erro ao realizar logout: " + err.message);
     }
   };
 
@@ -1470,39 +1458,15 @@ function AdminPanel({
           <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-600 to-amber-400 rounded-t-3xl" />
           
           <div className="text-center space-y-4 mb-6">
-            <div className="mx-auto w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20">
+            <div className="mx-auto w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-550 border border-amber-500/20">
               <Lock size={22} />
             </div>
             <div>
               <h2 className="font-serif text-2xl font-black text-white">Lounge Administrativo</h2>
               <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                {isDemoModeActive
-                  ? "Modo Demo: Para testar as telas administrativas, informe os dados padrão indicados abaixo."
-                  : "Insira suas credenciais cadastradas no console d o Firebase Authentication."}
+                Insira suas credenciais cadastradas no console do Firebase Authentication.
               </p>
             </div>
-          </div>
-
-          {/* Warning state regarding Mode selection */}
-          <div className="mb-4 flex items-center justify-between p-2 rounded-xl bg-zinc-900/40 border border-zinc-800 text-[10px]">
-            <span className="text-zinc-400 truncate">
-              Modo Atual: <strong className="text-zinc-200 uppercase">{isDemoModeActive ? "Demonstração (Local)" : "Online (Firebase)"}</strong>
-            </span>
-            <button
-              onClick={() => {
-                setLoginError(null);
-                if (isDemoModeActive) {
-                  setIsDemoModeActive(false);
-                  triggerToast("Carregando ambiente Firebase...");
-                } else {
-                  onEnableFallbackDemo();
-                }
-              }}
-              type="button"
-              className="py-1 px-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-500 font-extrabold transition font-sans text-[10px] uppercase tracking-wider cursor-pointer"
-            >
-              {isDemoModeActive ? "Mudar p/ Firebase" : "Mudar p/ Demo"}
-            </button>
           </div>
 
           {loginError && (
@@ -1525,20 +1489,8 @@ function AdminPanel({
                     <li>No menu esquerdo, vá em <strong className="text-zinc-300">Autenticação</strong> (Authentication).</li>
                     <li>Clique na aba <strong className="text-zinc-300">Sign-in method</strong> (Método de login).</li>
                     <li>Clique em <strong className="text-zinc-300">Adicionar novo provedor</strong> (Add new provider).</li>
-                    <li>Selecione <strong className="text-zinc-300">E-mail/Senha</strong> (Email/Password), ative a primeira chave de autenticação e clique em <strong className="text-zinc-300">Salvar</strong>.</li>
+                    <li>Selecione <strong className="text-zinc-300">E-mail/Senha</strong> (Email/Password), ative a primeira chave de autenticação e clique em <strong className="text-zinc-305">Salvar</strong>.</li>
                   </ol>
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginError(null);
-                        onEnableFallbackDemo();
-                      }}
-                      className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500 hover:text-zinc-950 text-amber-500 text-[10px] font-black uppercase tracking-wider transition text-center cursor-pointer"
-                    >
-                      Burlar e Usar Simulação (Modo Demo)
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -1550,7 +1502,7 @@ function AdminPanel({
               <input
                 type="email"
                 required
-                placeholder={isDemoModeActive ? "admin@demo.com" : "Ex: admin@seusite.com"}
+                placeholder="Ex: admin@seusite.com"
                 value={loginForm.email}
                 onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/85 transition"
@@ -1562,7 +1514,7 @@ function AdminPanel({
               <input
                 type="password"
                 required
-                placeholder={isDemoModeActive ? "123456" : "Sua senha de administrador"}
+                placeholder="Sua senha de administrador"
                 value={loginForm.password}
                 onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/85 transition"
@@ -1576,16 +1528,6 @@ function AdminPanel({
               Autenticar Painel
             </button>
           </form>
-
-          {isDemoModeActive && (
-            <div className="mt-5 p-3 rounded-xl bg-amber-950/20 border border-amber-500/15 text-[10px] text-amber-200/85 leading-relaxed">
-              <strong>ACESSO PADRÃO DEMO:</strong>
-              <br />
-              Email: <span className="font-mono text-white font-bold">admin@demo.com</span>
-              <br />
-              Senha: <span className="font-mono text-white font-bold">123456</span>
-            </div>
-          )}
         </div>
       </div>
     );
