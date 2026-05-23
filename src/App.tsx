@@ -1209,7 +1209,7 @@ function ClientSite({
                   <div className="grid grid-cols-2 p-3.5 rounded-xl bg-zinc-900/60 border border-zinc-800 text-left text-xs font-mono">
                     <div className="border-r border-zinc-800 pr-3">
                       <span className="text-[10px] text-zinc-500 uppercase block font-sans font-bold">Total a Pagar</span>
-                      <strong className="text-sm text-amber-500">{money(totalCost)}</strong>
+                      <strong className="text-sm text-amber-500">{money(lastSubmittedOrder ? lastSubmittedOrder.amount : totalCost)}</strong>
                     </div>
                     <div className="pl-3">
                       <span className="text-[10px] text-zinc-500 uppercase block font-sans font-bold">Cotas Selecionadas</span>
