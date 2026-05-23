@@ -1073,7 +1073,13 @@ function ClientSite({
                 <div className="pt-3 border-t border-emerald-950/60 space-y-3">
                   <div className="p-3 rounded-xl bg-zinc-90 w-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 space-y-1 font-mono">
                     <p><span className="text-zinc-500 font-sans font-semibold">Nome:</span> {lastSubmittedOrder.name}</p>
-                    <p><span className="text-zinc-500 font-sans font-semibold">Cotas:</span> {lastSubmittedOrder.numbers.join(", ")}</p>
+                    <p><span className="text-zinc-500 font-sans font-semibold">Cotas:</span> 
+                      <span className="ml-1 flex flex-wrap gap-1 mt-1">
+                        {lastSubmittedOrder.numbers.map(num => (
+                          <span key={num} className="px-2 py-0.5 rounded-md bg-amber-500 text-zinc-950 font-black text-[10px]">{num}</span>
+                        ))}
+                      </span>
+                    </p>
                     <p><span className="text-zinc-500 font-sans font-semibold">Total:</span> {money(lastSubmittedOrder.amount)}</p>
                   </div>
                 </div>
@@ -1133,12 +1139,11 @@ function ClientSite({
                   <p>
                     Comprador: <strong className="text-zinc-100">{order.name}</strong>
                   </p>
-                  <p>
-                    Cotas:{" "}
-                    <strong className="text-amber-400 font-mono text-xs">
-                      {(order.numbers || []).join(", ")}
-                    </strong>
-                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {(order.numbers || []).map(num => (
+                      <span key={num} className="px-2 py-0.5 rounded-md bg-zinc-800 text-amber-400 font-black text-[10px] border border-amber-500/20">{num}</span>
+                    ))}
+                  </div>
                   <p>
                     Valor total pago:{" "}
                     <strong className="text-zinc-100 font-mono">{money(order.amount)}</strong>

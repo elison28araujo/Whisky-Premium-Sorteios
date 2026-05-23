@@ -172,14 +172,17 @@ export function NumberedGrid({
           const isPending = pendingNumbers.has(number);
           const isSelected = selected.includes(number);
 
-          let btnClass = "border border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-amber-500/50 hover:bg-amber-500/5";
+          let btnClass = "border border-amber-500/20 bg-amber-500/5 text-amber-500/80 hover:border-amber-400 hover:bg-amber-400/20 hover:text-amber-300";
+          let icon = null;
+
           if (isApproved) {
-            btnClass = "border-zinc-800/80 bg-zinc-800/25 text-zinc-600 line-through cursor-not-allowed";
+            btnClass = "border-red-500/20 bg-red-500/5 text-red-500/30 cursor-not-allowed opacity-50 overflow-hidden";
+            icon = <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black opacity-20 rotate-12">PAGO</span>;
           } else if (isSelected) {
-            btnClass = "border-amber-500 bg-gradient-to-br from-amber-500 to-amber-600 text-zinc-950 font-black shadow-lg shadow-amber-500/20";
+            btnClass = "border-amber-400 bg-amber-400 text-zinc-950 font-black shadow-[0_0_15px_rgba(251,191,36,0.5)] animate-pulse scale-105 z-10";
           } else if (isPending) {
-            // Make it look more "Occupied" but distinct from fully approved
-            btnClass = "border-zinc-700 bg-zinc-800/10 text-zinc-500 opacity-60 cursor-not-allowed grayscale";
+            btnClass = "border-amber-500/40 bg-amber-500/10 text-amber-500/60 cursor-not-allowed";
+            icon = <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />;
           }
 
           return (
@@ -199,13 +202,11 @@ export function NumberedGrid({
               }`}
             >
               {number}
+              {icon}
               {isSelected && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-zinc-950 border border-amber-300 flex items-center justify-center text-[6px] font-sans font-black text-amber-400">
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-zinc-950 border border-amber-900 flex items-center justify-center text-[8px] font-sans font-black text-amber-400 shadow-lg">
                   ✓
                 </span>
-              )}
-              {isPending && (
-                <span className="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500" />
               )}
             </button>
           );
@@ -219,23 +220,22 @@ export function NumberedGrid({
         )}
       </div>
 
-      {/* Colour Legends */}
-      <div className="flex flex-wrap gap-x-6 gap-y-2 p-3 bg-zinc-900/30 rounded-lg border border-zinc-900 text-xs text-zinc-400">
+      <div className="flex flex-wrap gap-x-6 gap-y-3 p-4 bg-black/20 rounded-xl border border-white/5 text-[10px] text-zinc-400 uppercase tracking-widest font-bold">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-zinc-900 border border-zinc-800" />
+          <div className="w-4 h-4 rounded bg-amber-500/5 border border-amber-500/20" />
           <span>Livre</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-zinc-800/10 border border-zinc-700 grayscale" />
-          <span>Em Processamento (Reservado)</span>
+          <div className="w-4 h-4 rounded bg-amber-500/10 border border-amber-500/30" />
+          <span className="text-amber-500/80">Reservado</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-zinc-800/40 border border-zinc-800 strike-through" />
-          <span className="line-through text-zinc-500">Comprado (Confirmado)</span>
+          <div className="w-4 h-4 rounded bg-red-500/10 border border-red-500/20" />
+          <span className="text-red-500/40">Pago</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-gradient-to-br from-amber-500 to-amber-600" />
-          <span className="text-amber-400 font-medium">Sua Seleção</span>
+          <div className="w-4 h-4 rounded bg-amber-400 border border-amber-900 shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+          <span className="text-amber-400">Sua Seleção</span>
         </div>
       </div>
     </div>
