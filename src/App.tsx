@@ -747,13 +747,11 @@ function ClientSite({
           });
         } catch (mpErr: any) {
           console.error("Erro MP API:", mpErr);
-          alert(`Falha ao gerar o Pix via Mercado Pago: ${mpErr.message}. Iniciando no modo SIMULADOR para testes.`);
-          setActiveCheckoutPayment({
-            orderId: finalOrderId,
-            pixCopiaCola: `00020101021226830014br.gov.bcb.pix2561whiskypremium.com.br/pix/sim-${finalOrderId}`,
-            expiresAt: Date.now() + 10 * 60 * 1000,
-            type: "simulator"
-          });
+          setLoadingCheckout(false);
+          alert(`Falha na comunicação com o Mercado Pago: ${mpErr.message}\n\nPara o administrador: Caso o erro seja 'Unauthorized use of live credentials', significa que a sua conta do Mercado Pago ainda não está aprovada para Produção. Vá ao painel do Mercado Pago Developers, selecione sua aplicação e preencha o formulário 'Ir para Produção', ou utilize uma Credencial de Teste (TEST-...) enquanto o sistema não for publicado.`);
+          // Remove the order from local state since it failed
+          setOrders(prev => prev.filter(o => o.id !== finalOrderId));
+          return;
         }
       } else {
         // Simulator
