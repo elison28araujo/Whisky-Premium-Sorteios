@@ -521,7 +521,7 @@ function ClientSite({
       setCheckingPaymentStatus(true);
       intervalId = setInterval(async () => {
         try {
-          const res = await fetch(`https://api.mercadopago.com/v1/payments/${activeCheckoutPayment.paymentId}`, {
+          const res = await fetch(`/api/mercadopago/payment/${activeCheckoutPayment.paymentId}`, {
             headers: {
               "Authorization": `Bearer ${campaign.mpAccessToken}`
             }
@@ -629,13 +629,15 @@ function ClientSite({
             description: `Reserva - ${campaign.siteName}`
           };
 
-          const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
+          const mpRes = await fetch("/api/mercadopago/payment", {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${campaign.mpAccessToken}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify(bodyPayload)
+            body: JSON.stringify({
+              token: campaign.mpAccessToken,
+              body: bodyPayload
+            })
           });
 
           if (!mpRes.ok) {
