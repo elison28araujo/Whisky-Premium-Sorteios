@@ -1098,13 +1098,21 @@ function ClientSite({
                       <img
                         src={`data:image/jpeg;base64,${activeCheckoutPayment.qrCodeBase64}`}
                         alt="QR Code Pix"
-                        className="w-44 h-44 mx-auto rounded-lg bg-white p-1.5"
+                        className="w-44 h-44 mx-auto rounded-lg bg-white p-1.5 shadow-md"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : activeCheckoutPayment.pixCopiaCola ? (
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(activeCheckoutPayment.pixCopiaCola)}`}
+                        alt="QR Code Pix"
+                        className="w-44 h-44 mx-auto rounded-lg bg-white p-1.5 shadow-md"
+                        referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <div className="w-44 h-44 mx-auto rounded-lg bg-zinc-90 w-full bg-zinc-900 flex items-center justify-center border border-zinc-800 relative overflow-hidden group">
+                      <div className="w-44 h-44 mx-auto rounded-lg w-full bg-zinc-900 flex items-center justify-center border border-zinc-800 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-amber-500/10 to-transparent animate-[pulse_2s_infinite] pointer-events-none" />
                         <div className="absolute left-0 right-0 h-0.5 bg-amber-500/30 animate-[bounce_3s_infinite]" style={{ top: '50%' }} />
-                        <QrCode size={48} className="text-zinc-650 animate-pulse text-zinc-500" />
+                        <QrCode size={48} className="text-zinc-500 animate-pulse" />
                       </div>
                     )}
                     
