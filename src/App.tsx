@@ -636,10 +636,9 @@ function ClientSite({
       }, 7000);
     } else if (activeCheckoutPayment.type === "mp_pix" && activeCheckoutPayment.paymentId) {
       setCheckingPaymentStatus(true);
-      // Explicitly check status on mount once to avoid waiting 3s
-      const checkStatus = async () => {
+      intervalId = setInterval(async () => {
         try {
-          const res = await fetch(`/api/mercadopago/payment/${activeCheckoutPayment.paymentId}`, {
+          const res = await fetch(`https://api.mercadopago.com/v1/payments/${activeCheckoutPayment.paymentId}`, {
             headers: {
               "Authorization": `Bearer ${campaign.mpAccessToken}`
             }
@@ -656,20 +655,11 @@ function ClientSite({
                 spread: 90,
                 origin: { y: 0.6 }
               });
-              return true;
             }
           }
         } catch (err) {
-          console.error("Status check fail:", err);
+          console.error("Erro na busca de status de pagamento do Mercado Pago:", err);
         }
-        return false;
-      };
-
-      checkStatus();
-
-      intervalId = setInterval(async () => {
-        const approved = await checkStatus();
-        if (approved) clearInterval(intervalId);
       }, 3500);
     }
 
@@ -775,31 +765,22 @@ function ClientSite({
             description: `Reserva - ${campaign.siteName}`
           };
 
-          const mpRes = await fetch("/api/mercadopago/payment", {
+          const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${campaign.mpAccessToken}`,
+              "X-Idempotency-Key": `id-key-${Date.now()}`
             },
-            body: JSON.stringify({
-              token: campaign.mpAccessToken,
-              body: bodyPayload
-            })
+            body: JSON.stringify(bodyPayload)
           });
 
-          let mpData;
-          let responseText = "";
-          try {
-            responseText = await mpRes.text();
-            if (!responseText) throw new Error("Resposta vazia do servidor.");
-            mpData = JSON.parse(responseText);
-          } catch (e) {
-            console.error("JSON parse error:", e, "Payload was:", responseText);
-            throw new Error(`Erro de resposta do servidor: O sistema retornou um conteúdo inesperado. Verifique se as credenciais do Mercado Pago estão corretas ou se o servidor está ativo.`);
+          if (!mpRes.ok) {
+            const errData = await mpRes.json();
+            throw new Error(errData.message || "Erro retornado pelo Mercado Pago. Verifique se o seu Access Token de Produção está correto.");
           }
 
-          if (!mpRes.ok) {
-            throw new Error(mpData?.message || mpData?.error || "Erro retornado pelo Mercado Pago.");
-          }
+          const mpData = await mpRes.json();
           const paymentId = String(mpData.id);
           const qrCodeString = mpData.point_of_interaction?.transaction_data?.qr_code || "";
           const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64 || "";
