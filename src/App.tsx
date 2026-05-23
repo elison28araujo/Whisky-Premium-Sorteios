@@ -66,6 +66,8 @@ import bgBrasilParaAsset from "./assets/images/brasil_para_world_cup_bg_17795141
 import whiskyBannerAsset from "./assets/images/whisky_banner_1779503336702.png";
 // @ts-ignore
 import whiskyChestAsset from "./assets/images/whisky_chest_1779503353570.png";
+// @ts-ignore
+import brazilSoccerCharacter from "./assets/images/brazil_soccer_character_1779521107880.png";
 
 // Raw Firebase Configuration
 const firebaseConfig = {
@@ -362,8 +364,8 @@ export default function App() {
           transition={{ duration: 0.5 }}
           className="w-full max-w-lg z-10"
         >
-          <div className="rounded-3xl border border-amber-500/15 bg-zinc-900/40 backdrop-blur-xl text-white p-8 md:p-10 shadow-2xl relative">
-            <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 rounded-t-3xl" />
+          <div className="rounded-3xl border border-amber-500/30 bg-zinc-900 shadow-2xl relative overflow-hidden text-white p-8 md:p-10">
+            <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600" />
             
             <div className="text-center space-y-6">
               <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/25 to-amber-600/10 border border-amber-500/30 flex items-center justify-center text-amber-500">
@@ -408,12 +410,12 @@ export default function App() {
   return (
     <div 
       className="min-h-screen font-sans bg-zinc-950 text-amber-50 pb-20 selection:bg-amber-500/20 selection:text-amber-200 bg-cover bg-center bg-fixed"
-      style={{ backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.0), rgba(0, 0, 0, 0.1)), url(${bgBrasilParaAsset})` }}
+      style={{ backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.85)), url(${bgBrasilParaAsset})` }}
     >
       
       {/* Main Header */}
-      <header className="sticky top-0 z-40 bg-black/40 backdrop-blur-md border-b border-white/10">
-        <div className="mx-auto max-w-7xl flex items-center justify-between p-4 md:p-5">
+      <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-xl border-b border-white/10">
+        <div className="mx-auto max-w-5xl flex items-center justify-between p-4 md:p-5">
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-700 items-center justify-center text-zinc-950 font-black shadow-lg">
               BR
@@ -443,7 +445,7 @@ export default function App() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="mx-auto max-w-7xl p-4 md:p-6"
+            className="mx-auto max-w-5xl p-4 md:p-6"
           >
             <AdminPanel
               campaign={campaign}
@@ -462,7 +464,7 @@ export default function App() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="mx-auto max-w-7xl p-4 md:p-6"
+            className="mx-auto max-w-5xl p-4 md:p-6"
           >
             <ClientSite
               campaign={campaign}
@@ -484,13 +486,35 @@ export default function App() {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 30 }}
-            className="fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl bg-zinc-900 border border-amber-500/30 text-amber-300 shadow-xl shadow-black/80 text-xs font-bold font-mono flex items-center gap-2"
+            className="fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl bg-zinc-900 border border-amber-500 text-amber-300 shadow-xl shadow-black/80 text-xs font-bold font-mono flex items-center gap-2"
           >
             <Sparkles size={14} className="text-amber-400" />
             {showToast}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Brazil Soccer Character Animation */}
+      <motion.div
+        initial={{ opacity: 0, x: 100 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="fixed bottom-4 left-4 z-50 pointer-events-none hidden md:block"
+      >
+        <motion.img
+          src={brazilSoccerCharacter}
+          alt="Boneco Brasil"
+          className="w-32 h-auto drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]"
+          animate={{ 
+            y: [0, -15, 0],
+            rotate: [2, -2, 2]
+          }}
+          transition={{ 
+            duration: 4, 
+            repeat: Infinity, 
+            ease: "easeInOut" 
+          }}
+        />
+      </motion.div>
     </div>
   );
 }
@@ -689,7 +713,19 @@ function ClientSite({
     }
 
     // Age calculation
-    const birthday = new Date(form.birthDate);
+    let birthday: Date;
+    if (form.birthDate.includes("/")) {
+      const [day, month, year] = form.birthDate.split("/").map(Number);
+      birthday = new Date(year, month - 1, day);
+    } else {
+      birthday = new Date(form.birthDate);
+    }
+    
+    if (isNaN(birthday.getTime())) {
+      alert("Por favor insira uma data de nascimento válida.");
+      return;
+    }
+
     const ageDiff = Date.now() - birthday.getTime();
     const ageDate = new Date(ageDiff);
     const age = Math.abs(ageDate.getUTCFullYear() - 1970);
@@ -835,7 +871,7 @@ function ClientSite({
       <div className="space-y-6">
         
         {/* Hero visual header containing generated images */}
-        <div className="relative overflow-hidden rounded-3xl border border-amber-500/20 bg-black/10 backdrop-blur-sm shadow-2xl">
+        <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-zinc-900 shadow-2xl">
           
           {/* Main Visual Banner */}
           <div className="relative h-60 md:h-[320px] w-full overflow-hidden flex items-center justify-center">
@@ -846,46 +882,46 @@ function ClientSite({
               referrerPolicy="no-referrer"
             />
             {/* Dark vignette blending */}
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-black/35" />
-            <div className="absolute bottom-5 left-5 right-5 space-y-1 md:space-y-2 text-left">
-              <span className="bg-amber-500/25 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-black/30" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-1 md:space-y-2 text-center p-6">
+              <span className="bg-amber-500 text-zinc-950 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">
                 CAMPANHA PRINCIPAL VIP
               </span>
-              <h2 className="font-serif text-2xl md:text-4xl font-extrabold text-white tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] leading-tight">
+              <h2 className="font-serif text-2xl md:text-5xl font-extrabold text-white tracking-tight drop-shadow-[0_2px_15px_rgba(0,0,0,1)] leading-tight max-w-2xl">
                 {campaign.prizeName}
               </h2>
             </div>
           </div>
 
           {/* Sorteio Specifications dashboard */}
-          <div className="grid gap-4 p-5 md:p-6 sm:grid-cols-3 bg-black/10 backdrop-blur-sm border-t border-white/10">
-            <div className="p-3 bg-zinc-900/40 border border-zinc-900 rounded-xl space-y-1">
-              <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Valor do Bilhete</span>
+          <div className="grid gap-4 p-5 md:p-6 sm:grid-cols-3 bg-zinc-900 border-t border-white/10 text-center">
+            <div className="p-3 bg-zinc-800 border border-zinc-700 rounded-xl space-y-1 flex flex-col items-center justify-center">
+              <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">Valor do Bilhete</span>
               <p className="text-xl font-bold text-amber-500 font-mono">{money(ticketPrice)}</p>
             </div>
-            <div className="p-3 bg-zinc-900/40 border border-zinc-900 rounded-xl space-y-1">
-              <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Disponibilidade</span>
+            <div className="p-3 bg-zinc-800 border border-zinc-700 rounded-xl space-y-1 flex flex-col items-center justify-center">
+              <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">Disponibilidade</span>
               <p className="text-xl font-bold text-white font-mono">
                 {availableNumbers.length} <span className="text-xs text-zinc-500 font-semibold uppercase">Restantes</span>
               </p>
             </div>
-            <div className="p-3 bg-zinc-900/40 border border-zinc-900 rounded-xl space-y-1">
-              <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Tipo de Determinação</span>
-              <p className="text-xs font-semibold text-zinc-300 line-clamp-2 leading-relaxed">
+            <div className="p-3 bg-zinc-800 border border-zinc-700 rounded-xl space-y-1 flex flex-col items-center justify-center">
+              <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">Tipo de Determinação</span>
+              <p className="text-xs font-semibold text-zinc-300 line-clamp-2 leading-relaxed max-w-[200px]">
                 {campaign.drawDate ? `Data: ${campaign.drawDate}` : campaign.drawMode}
               </p>
             </div>
           </div>
 
           {/* Progress Section */}
-          <div className="px-5 pb-5 md:px-6 md:pb-6 space-y-2">
-            <div className="flex justify-between items-center text-xs text-zinc-400">
-              <span className="font-mono">Progresso das reservas confirmadas:</span>
+          <div className="px-5 pb-5 md:px-6 md:pb-6 space-y-2 flex flex-col items-center">
+            <div className="flex justify-between items-center text-xs text-zinc-400 w-full max-w-md">
+              <span className="font-mono uppercase tracking-tighter opacity-70">Progresso Geral</span>
               <span className="font-black text-amber-400 font-mono">{progressPercent}%</span>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800 p-0.5">
+            <div className="h-2.5 w-full max-w-md overflow-hidden rounded-full bg-zinc-950 border border-zinc-800 p-0.5">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]"
+                className="h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.5)] transition-all duration-1000 ease-out"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -893,7 +929,7 @@ function ClientSite({
         </div>
 
         {/* Cota Selector Container */}
-        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 shadow-xl">
+        <div className="rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-8 shadow-xl">
           <NumberedGrid
             totalNumbers={campaign.totalNumbers}
             approvedNumbers={approvedNumbers}
@@ -905,30 +941,30 @@ function ClientSite({
         </div>
 
         {/* Prize description + second generated Image */}
-        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 space-y-5">
-          <h4 className="font-serif text-lg font-bold text-amber-100 flex items-center gap-1.5 uppercase tracking-wide">
-            <Info size={18} className="text-amber-500" />
-            Especificações do Prêmio Premium
+        <div className="rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-8 space-y-6 flex flex-col items-center text-center">
+          <h4 className="font-serif text-xl font-black text-amber-100 flex items-center gap-2 uppercase tracking-widest">
+            <Info size={20} className="text-amber-500" />
+            Especificações do Prêmio
           </h4>
 
-          <div className="grid gap-6 md:grid-cols-[0.4fr_0.6fr] items-center">
-            <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 relative aspect-square w-full max-w-44 mx-auto md:max-w-none">
+          <div className="grid gap-8 items-center max-w-3xl">
+            <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 relative aspect-video w-full max-w-sm mx-auto shadow-2xl">
               <img
                 src={campaign.secondaryImageUrl || whiskyChestAsset}
                 alt="Macallan Premium collectors chest packaging"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/60 to-transparent" />
             </div>
-            <div className="space-y-3">
-              <p className="text-sm text-zinc-300 leading-relaxed font-sans mt-1">
+            <div className="space-y-4">
+              <p className="text-base text-zinc-300 leading-relaxed font-sans max-w-2xl mx-auto">
                 {campaign.prizeDescription}
               </p>
-              <div className="rounded-xl bg-zinc-900/50 border border-zinc-900 p-3 flex items-center gap-3">
-                <ShieldCheck className="text-amber-500 shrink-0" size={18} />
-                <span className="text-[10px] text-zinc-400 uppercase font-mono tracking-wider font-extrabold leading-tight">
-                  Autenticidade assegurada por selo do importador oficial
+              <div className="inline-flex items-center gap-3 rounded-2xl bg-zinc-950 border border-zinc-800 px-5 py-3 shadow-inner">
+                <ShieldCheck className="text-amber-500 shrink-0" size={20} />
+                <span className="text-xs text-zinc-400 uppercase font-mono tracking-widest font-bold">
+                  Selo de Autenticidade Garantido
                 </span>
               </div>
             </div>
@@ -940,17 +976,17 @@ function ClientSite({
       <div className="space-y-6">
         
         {/* PIX Checkout processing panel */}
-        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 shadow-xl space-y-5 relative">
+        <div className="rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-6 shadow-xl space-y-5 relative">
           <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-600 to-amber-400 rounded-t-3xl" />
           
           <div>
             <h3 className="font-serif text-xl font-bold text-zinc-100">Finalizar Reserva</h3>
-            <p className="text-xs text-zinc-400 mt-0.5">Realize a transferência e envie os dados cadastrais.</p>
+            <p className="text-xs text-zinc-300 mt-0.5">Realize a transferência e envie os dados cadastrais.</p>
           </div>
 
           {/* Pix copy section */}
-          <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-2">
-            <span className="text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest block">Chave do Pix Destinatária (Celular)</span>
+          <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2">
+            <span className="text-[9px] font-mono font-bold text-zinc-400 uppercase tracking-widest block">Chave do Pix Destinatária (Celular)</span>
             <div className="flex items-center justify-between gap-2">
               <p className="truncate font-mono font-black text-amber-300 text-sm select-all tracking-wide">{campaign.pixKey}</p>
               <button
@@ -962,8 +998,8 @@ function ClientSite({
                 <Copy size={14} />
               </button>
             </div>
-            <div className="pt-2 border-t border-zinc-800/60 text-xs text-zinc-400 mt-1">
-              Beneficiário: <strong className="text-zinc-200">{campaign.pixHolder}</strong>
+            <div className="pt-2 border-t border-zinc-800/60 text-xs text-zinc-300 mt-1">
+              Beneficiário: <strong className="text-zinc-100">{campaign.pixHolder}</strong>
             </div>
           </div>
 
@@ -1022,13 +1058,24 @@ function ClientSite({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-400">Data de Nascimento (Maioridade Check)</label>
+              <label className="text-xs font-semibold text-zinc-400">Data de Nascimento (DD/MM/AAAA)</label>
               <input
-                type="date"
+                type="text"
+                placeholder="DD/MM/AAAA"
                 required
                 value={form.birthDate}
-                onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+                onChange={(e) => {
+                  let val = e.target.value.replace(/\D/g, "");
+                  if (val.length > 8) val = val.slice(0, 8);
+                  
+                  let formatted = val;
+                  if (val.length > 2) formatted = val.slice(0, 2) + "/" + val.slice(2);
+                  if (val.length > 4) formatted = formatted.slice(0, 5) + "/" + formatted.slice(5);
+                  
+                  setForm({ ...form, birthDate: formatted });
+                }}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-865 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/80 transition font-mono"
+                maxLength={10}
               />
             </div>
 
@@ -1663,6 +1710,17 @@ function AdminPanel({
                 value={campaign.prizeName}
                 onChange={(e) => setCampaign({ ...campaign, prizeName: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest font-mono">Data Prevista do Sorteio (Texto Livre)</label>
+              <input
+                type="text"
+                placeholder="Ex: 30/06/2026 ou Em Breve"
+                value={campaign.drawDate || ""}
+                onChange={(e) => setCampaign({ ...campaign, drawDate: e.target.value })}
+                className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition font-mono"
               />
             </div>
 
