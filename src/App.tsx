@@ -575,15 +575,17 @@ function ClientSite({
 
   const handleAutoApproveOrder = async (orderId: string) => {
     try {
-      // Optimistically update local state for instant feedback
-      const updated = orders.map((o) => {
-        if (o.id === orderId) {
-          return { ...o, status: "approved" as const, reviewedAt: { seconds: Date.now() / 1000 } };
-        }
-        return o;
+      // Optimistically update local state for instant feedback using functional update
+      setOrders((prev) => {
+        const updated = prev.map((o) => {
+          if (o.id === orderId) {
+            return { ...o, status: "approved" as const, reviewedAt: { seconds: Date.now() / 1000 } };
+          }
+          return o;
+        });
+        localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
+        return updated;
       });
-      setOrders(updated);
-      localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
 
       if (isFirebaseActive && dbInstance) {
         updateDoc(doc(dbInstance, "orders", orderId), {
@@ -714,9 +716,11 @@ function ClientSite({
       let finalOrderId = newOrderId;
 
       // Always save locally first for instant feedback, offline search, and resilience
-      const updatedLocalOrders = [{ ...newOrder, id: finalOrderId }, ...orders];
-      setOrders(updatedLocalOrders);
-      localStorage.setItem("whisky_premium_orders", JSON.stringify(updatedLocalOrders));
+      setOrders((prev) => {
+        const updatedLocalOrders = [{ ...newOrder, id: finalOrderId }, ...prev];
+        localStorage.setItem("whisky_premium_orders", JSON.stringify(updatedLocalOrders));
+        return updatedLocalOrders;
+      });
 
       if (isFirebaseActive && dbInstance) {
         try {
@@ -732,9 +736,11 @@ function ClientSite({
           });
           
           // Keep localstorage in sync with the real document ID
-          const updatedWithServerId = [{ ...newOrder, id: finalOrderId }, ...orders];
-          setOrders(updatedWithServerId);
-          localStorage.setItem("whisky_premium_orders", JSON.stringify(updatedWithServerId));
+          setOrders((prev) => {
+            const updatedWithServerId = prev.map(o => o.id === newOrderId ? { ...newOrder, id: finalOrderId } : o);
+            localStorage.setItem("whisky_premium_orders", JSON.stringify(updatedWithServerId));
+            return updatedWithServerId;
+          });
         } catch (firebaseErr: any) {
           console.warn("Sync error setup:", firebaseErr);
         }
@@ -792,7 +798,7 @@ function ClientSite({
           });
         } catch (mpErr: any) {
           console.error("Erro MP API:", mpErr);
-          setLoadingCheckout(false);
+          setSubmitting(false);
           alert(`Falha na comunicação com o Mercado Pago: ${mpErr.message}\n\nPara o administrador: Caso o erro seja 'Unauthorized use of live credentials', significa que a sua conta do Mercado Pago ainda não está aprovada para Produção. Vá ao painel do Mercado Pago Developers, selecione sua aplicação e preencha o formulário 'Ir para Produção', ou utilize uma Credencial de Teste (TEST-...) enquanto o sistema não for publicado.`);
           // Remove the order from local state since it failed
           setOrders(prev => prev.filter(o => o.id !== finalOrderId));
