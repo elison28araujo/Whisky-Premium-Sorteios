@@ -1,0 +1,6 @@
+{
+  "name": "Whisky Premium Sorteios",
+  "description": "Plataforma de sorteios e rifas de whiskies raros e luxuosos. Escolha seus números, envie o PIX e concorra!",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
