@@ -145,8 +145,28 @@ function money(value: number): string {
 }
 
 export default function App() {
-  const [campaign, setCampaign] = useState<Campaign>(DEFAULT_CAMPAIGN);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [campaign, setCampaign] = useState<Campaign>(() => {
+    const local = localStorage.getItem("whisky_premium_settings");
+    if (local) {
+      try {
+        return { ...DEFAULT_CAMPAIGN, ...JSON.parse(local) };
+      } catch (e) {
+        return DEFAULT_CAMPAIGN;
+      }
+    }
+    return DEFAULT_CAMPAIGN;
+  });
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const local = localStorage.getItem("whisky_premium_orders");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
   const [ageConfirmed, setAgeConfirmed] = useState<boolean>(() => {
     return localStorage.getItem("whisky_age_confirmed") === "true";
   });
@@ -165,25 +185,48 @@ export default function App() {
         setAdminUser(user);
       });
 
+      // Synchronously load from localStorage first as instant cache/offline placeholder
+      const localCampaign = localStorage.getItem("whisky_premium_settings");
+      if (localCampaign) {
+        try {
+          setCampaign({ ...DEFAULT_CAMPAIGN, ...JSON.parse(localCampaign) });
+        } catch (e) {}
+      }
+      const localOrders = localStorage.getItem("whisky_premium_orders");
+      if (localOrders) {
+        try {
+          setOrders(JSON.parse(localOrders));
+        } catch (e) {}
+      }
+
       unsubCampaign = onSnapshot(doc(dbInstance, "settings", "campaign"), async (snap) => {
         if (!snap.exists()) {
           try {
             await setDoc(doc(dbInstance, "settings", "campaign"), DEFAULT_CAMPAIGN);
             setCampaign(DEFAULT_CAMPAIGN);
+            localStorage.setItem("whisky_premium_settings", JSON.stringify(DEFAULT_CAMPAIGN));
           } catch (e) {
             console.error("Incapaz de persistir defaults no Firestore real:", e);
           }
         } else {
-          setCampaign({ ...DEFAULT_CAMPAIGN, ...snap.data() });
+          const loadedCampaign = { ...DEFAULT_CAMPAIGN, ...snap.data() };
+          setCampaign(loadedCampaign);
+          localStorage.setItem("whisky_premium_settings", JSON.stringify(loadedCampaign));
         }
+        setLoading(false);
+      }, (err) => {
+        console.warn("Erro ao ler settings no Firestore, usando dados locais offline:", err);
         setLoading(false);
       });
 
       const q = query(collection(dbInstance, "orders"), orderBy("createdAt", "desc"));
       unsubOrders = onSnapshot(q, (snap) => {
-        setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+        const loadedOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
+        setOrders(loadedOrders);
+        localStorage.setItem("whisky_premium_orders", JSON.stringify(loadedOrders));
       }, (error) => {
-        console.warn("Erro ao escutar ordens de pagamento no Firestore:", error);
+        console.warn("Erro ao escutar ordens de pagamento no Firestore, usando local:", error);
+        setLoading(false);
       });
     } else {
       // Local setup fallback if Firebase gets initialized without configuration
@@ -601,15 +644,24 @@ function ClientSite({
 
       let finalOrderId = newOrderId;
 
+      // Always save locally first for instant feedback, offline search, and resilience
+      const updatedLocalOrders = [{ ...newOrder, id: finalOrderId }, ...orders];
+      setOrders(updatedLocalOrders);
+      localStorage.setItem("whisky_premium_orders", JSON.stringify(updatedLocalOrders));
+
       if (isFirebaseActive && dbInstance) {
-        // Real Firebase persistence
-        const docRef = await addDoc(collection(dbInstance, "orders"), newOrder);
-        finalOrderId = docRef.id;
-      } else {
-        // Localstorage redundancy
-        const updated = [newOrder, ...orders];
-        setOrders(updated);
-        localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
+        try {
+          // Real Firebase persistence
+          const docRef = await addDoc(collection(dbInstance, "orders"), newOrder);
+          finalOrderId = docRef.id;
+          
+          // Keep localstorage in sync with the real document ID
+          const updatedWithServerId = [{ ...newOrder, id: finalOrderId }, ...orders];
+          setOrders(updatedWithServerId);
+          localStorage.setItem("whisky_premium_orders", JSON.stringify(updatedWithServerId));
+        } catch (firebaseErr: any) {
+          console.warn("Erro ao persistir pedido no Firestore (mantido localmente):", firebaseErr);
+        }
       }
 
       if (campaign.pixType === "mp_pix") {
@@ -1312,11 +1364,16 @@ function AdminPanel({
         totalNumbers: Number(campaign.totalNumbers),
       };
 
+      // Always save to localStorage and React state first for zero-latency, offline-first reliability
+      localStorage.setItem("whisky_premium_settings", JSON.stringify(updatedCampaign));
+      setCampaign(updatedCampaign);
+
       if (isFirebaseActive && dbInstance) {
-        await setDoc(doc(dbInstance, "settings", "campaign"), updatedCampaign);
-      } else {
-        localStorage.setItem("whisky_premium_settings", JSON.stringify(updatedCampaign));
-        setCampaign(updatedCampaign);
+        try {
+          await setDoc(doc(dbInstance, "settings", "campaign"), updatedCampaign);
+        } catch (fbErr: any) {
+          console.warn("Erro ao sincronizar com Firestore (Salvo apenas localmente no seu navegador):", fbErr);
+        }
       }
       triggerToast("Configurações da campanha salvas com sucesso!");
     } catch (err: any) {
@@ -1328,21 +1385,25 @@ function AdminPanel({
 
   const handleChangeOrderStatus = async (orderId: string, status: "approved" | "rejected" | "pending") => {
     try {
+      // Always update local React state and local storage instantly for instant feedback & offline sync
+      const updated = orders.map((o) => {
+        if (o.id === orderId) {
+          return { ...o, status, reviewedAt: { seconds: Date.now() / 1000 } };
+        }
+        return o;
+      });
+      setOrders(updated);
+      localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
+
       if (isFirebaseActive && dbInstance) {
-        await updateDoc(doc(dbInstance, "orders", orderId), {
-          status,
-          reviewedAt: serverTimestamp(),
-        });
-      } else {
-        // Redundancy updates
-        const updated = orders.map((o) => {
-          if (o.id === orderId) {
-            return { ...o, status, reviewedAt: { seconds: Date.now() / 1000 } };
-          }
-          return o;
-        });
-        setOrders(updated);
-        localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
+        try {
+          await updateDoc(doc(dbInstance, "orders", orderId), {
+            status,
+            reviewedAt: serverTimestamp(),
+          });
+        } catch (fbErr) {
+          console.warn("Erro ao salvar status no Firestore (atualizado apenas localmente):", fbErr);
+        }
       }
       triggerToast(`Status do pedido atualizado para ${status === "approved" ? "Aprovado" : "Cancelado"}!`);
     } catch (err: any) {
