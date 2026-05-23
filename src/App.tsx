@@ -787,12 +787,13 @@ function ClientSite({
           });
 
           let mpData;
+          let responseText = "";
           try {
-            const text = await mpRes.text();
-            if (!text) throw new Error("Resposta vazia do servidor.");
-            mpData = JSON.parse(text);
+            responseText = await mpRes.text();
+            if (!responseText) throw new Error("Resposta vazia do servidor.");
+            mpData = JSON.parse(responseText);
           } catch (e) {
-            console.error("JSON parse error:", e, "Payload was:", text);
+            console.error("JSON parse error:", e, "Payload was:", responseText);
             throw new Error(`Erro de resposta do servidor: O sistema retornou um conteúdo inesperado. Verifique se as credenciais do Mercado Pago estão corretas ou se o servidor está ativo.`);
           }
 
