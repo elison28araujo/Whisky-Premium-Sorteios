@@ -17,6 +17,8 @@ export interface Campaign {
   rules: string;
   whatsappGroupUrl?: string;
   whatsappContact?: string;
+  pixType?: "manual" | "mp_pix" | "simulator";
+  mpAccessToken?: string;
 }
 
 export interface Order {

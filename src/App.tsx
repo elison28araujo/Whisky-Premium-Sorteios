@@ -50,9 +50,11 @@ import {
   Sparkles,
   Inbox,
   MessageCircle,
+  QrCode,
 } from "lucide-react";
 
 import { Campaign, Order } from "./types";
+import confetti from "canvas-confetti";
 import { NumberedGrid } from "./components/NumberedGrid";
 import { InteractiveScanner } from "./components/InteractiveScanner";
 import { Sorteador } from "./components/Sorteador";
@@ -115,6 +117,8 @@ const DEFAULT_CAMPAIGN: Campaign = {
     "Participação permitida apenas para maiores de 18 anos. Os números são confirmados somente de forma eletrônica após aprovação manual ou automática do Pix pelo administrador do sistema. A entrega do produto é realizada via transportadora segurada ou em mãos conforme regulamento.",
   whatsappGroupUrl: "https://chat.whatsapp.com/GgGvOnfIasvEnT90pLaSeX",
   whatsappContact: "91985066711",
+  pixType: "manual",
+  mpAccessToken: "",
 };
 
 // Mask Formatters
@@ -399,6 +403,9 @@ export default function App() {
               adminUser={adminUser}
               setAdminUser={setAdminUser}
               isDemoModeActive={isDemoModeActive}
+              setIsDemoModeActive={setIsDemoModeActive}
+              isFirebaseActive={isFirebaseActive}
+              onEnableFallbackDemo={enableFallbackDemo}
               triggerToast={triggerToast}
             />
           </motion.div>
@@ -474,6 +481,17 @@ function ClientSite({
   const [submitSuccess, setSubmitSuccess] = useState<string>("");
   const [lastSubmittedOrder, setLastSubmittedOrder] = useState<Order | null>(null);
 
+  const [activeCheckoutPayment, setActiveCheckoutPayment] = useState<{
+    orderId: string;
+    pixCopiaCola: string;
+    qrCodeBase64?: string;
+    paymentId?: string;
+    expiresAt: number;
+    type: "simulator" | "mp_pix";
+  } | null>(null);
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState<boolean>(false);
+  const [paymentApprovedAt, setPaymentApprovedAt] = useState<boolean>(false);
+
   const ticketPrice = Number(campaign.ticketPrice || 0);
   const totalCost = selected.length * ticketPrice;
   const progressPercent = campaign.totalNumbers
@@ -516,6 +534,80 @@ function ClientSite({
     return `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`;
   };
 
+  const handleAutoApproveOrder = async (orderId: string) => {
+    try {
+      if (!isDemoModeActive && isFirebaseActive && dbInstance) {
+        await updateDoc(doc(dbInstance, "orders", orderId), {
+          status: "approved",
+          reviewedAt: serverTimestamp(),
+        });
+      } else {
+        const updated = orders.map((o) => {
+          if (o.id === orderId) {
+            return { ...o, status: "approved" as const, reviewedAt: { seconds: Date.now() / 1000 } };
+          }
+          return o;
+        });
+        setOrders(updated);
+        localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
+      }
+      triggerToast("Pagamento Pix confirmado automaticamente!");
+    } catch (err: any) {
+      console.error("Erro na confirmação automática:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!activeCheckoutPayment) return;
+
+    let intervalId: any = null;
+    let timeoutId: any = null;
+
+    if (activeCheckoutPayment.type === "simulator") {
+      timeoutId = setTimeout(() => {
+        handleAutoApproveOrder(activeCheckoutPayment.orderId);
+        setPaymentApprovedAt(true);
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+      }, 7000);
+    } else if (activeCheckoutPayment.type === "mp_pix" && activeCheckoutPayment.paymentId) {
+      setCheckingPaymentStatus(true);
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch(`https://api.mercadopago.com/v1/payments/${activeCheckoutPayment.paymentId}`, {
+            headers: {
+              "Authorization": `Bearer ${campaign.mpAccessToken}`
+            }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === "approved") {
+              if (intervalId) clearInterval(intervalId);
+              handleAutoApproveOrder(activeCheckoutPayment.orderId);
+              setPaymentApprovedAt(true);
+              setCheckingPaymentStatus(false);
+              confetti({
+                particleCount: 180,
+                spread: 90,
+                origin: { y: 0.6 }
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Erro na busca de status de pagamento do Mercado Pago:", err);
+        }
+      }, 3000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [activeCheckoutPayment]);
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitSuccess("");
@@ -533,7 +625,10 @@ function ClientSite({
       alert("Por favor preencha todos os dados no formulário.");
       return;
     }
-    if (!receipt) {
+
+    const isAutomatic = campaign.pixType && campaign.pixType !== "manual";
+
+    if (!isAutomatic && !receipt) {
       alert("Comprovante PIX obrigatório para enviar o pedido.");
       return;
     }
@@ -550,6 +645,8 @@ function ClientSite({
     }
 
     setSubmitting(true);
+    setPaymentApprovedAt(false);
+    setActiveCheckoutPayment(null);
     const newOrderId = "ord-" + Date.now();
 
     try {
@@ -564,13 +661,16 @@ function ClientSite({
         numbers: selected,
         amount: totalCost,
         status: "pending",
-        receiptUrl: documentUrl,
+        receiptUrl: !isAutomatic ? documentUrl : undefined,
         createdAt: isDemoModeActive ? { seconds: Date.now() / 1000 } : serverTimestamp(),
       };
 
+      let finalOrderId = newOrderId;
+
       if (!isDemoModeActive && isFirebaseActive && dbInstance) {
         // Real Firebase persistence
-        await addDoc(collection(dbInstance, "orders"), newOrder);
+        const docRef = await addDoc(collection(dbInstance, "orders"), newOrder);
+        finalOrderId = docRef.id;
       } else {
         // Localstorage redundancy
         const updated = [newOrder, ...orders];
@@ -578,14 +678,87 @@ function ClientSite({
         localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
       }
 
-      setSubmitSuccess(
-        "Seu pedido foi enviado para análise! O administrador irá conferir o comprovante e você poderá acompanhar o status de aprovação digitando seu CPF na busca."
-      );
-      setLastSubmittedOrder(newOrder);
+      if (isAutomatic) {
+        if (campaign.pixType === "mp_pix") {
+          try {
+            const bodyPayload = {
+              transaction_amount: Number(totalCost),
+              payment_method_id: "pix",
+              payer: {
+                email: `${form.cpf.replace(/\D/g, "")}@whiskypremium.com.br`,
+                first_name: form.name.split(" ")[0] || "Comprador",
+                last_name: form.name.split(" ").slice(1).join(" ") || "Privado",
+                identification: {
+                  type: "CPF",
+                  number: form.cpf.replace(/\D/g, "")
+                }
+              },
+              description: `Reserva - ${campaign.siteName}`
+            };
+
+            const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${campaign.mpAccessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(bodyPayload)
+            });
+
+            if (!mpRes.ok) {
+              const errData = await mpRes.json();
+              throw new Error(errData.message || "Erro retornado pelo Mercado Pago. Verifique as credenciais.");
+            }
+
+            const mpData = await mpRes.json();
+            const paymentId = String(mpData.id);
+            const qrCodeString = mpData.point_of_interaction?.transaction_data?.qr_code || "";
+            const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64 || "";
+
+            if (!qrCodeString) {
+              throw new Error("Não foi possível carregar o código Copia e Cola do Mercado Pago.");
+            }
+
+            setActiveCheckoutPayment({
+              orderId: finalOrderId,
+              pixCopiaCola: qrCodeString,
+              qrCodeBase64: qrCodeBase64,
+              paymentId: paymentId,
+              expiresAt: Date.now() + 10 * 60 * 1000,
+              type: "mp_pix"
+            });
+          } catch (mpErr: any) {
+            console.error("Erro MP API:", mpErr);
+            alert(`Falha ao gerar o Pix via Mercado Pago: ${mpErr.message}. Iniciando no modo SIMULADOR para testes.`);
+            setActiveCheckoutPayment({
+              orderId: finalOrderId,
+              pixCopiaCola: `00020101021226830014br.gov.bcb.pix2561whiskypremium.com.br/pix/sim-${finalOrderId}`,
+              expiresAt: Date.now() + 10 * 60 * 1000,
+              type: "simulator"
+            });
+          }
+        } else {
+          // Simulator
+          setActiveCheckoutPayment({
+            orderId: finalOrderId,
+            pixCopiaCola: `00020101021226830014br.gov.bcb.pix2561whiskypremium.com.br/pix/sim-${finalOrderId}`,
+            expiresAt: Date.now() + 10 * 60 * 1000,
+            type: "simulator"
+          });
+        }
+
+        setSubmitSuccess("Seu código de pagamento PIX automático foi gerado com sucesso!");
+      } else {
+        setSubmitSuccess(
+          "Seu pedido foi enviado para análise! O administrador irá conferir o comprovante e você poderá acompanhar o status de aprovação digitando seu CPF na busca."
+        );
+      }
+
+      setLastSubmittedOrder({ ...newOrder, id: finalOrderId });
       setSelected([]);
       setForm({ name: "", cpf: "", whatsapp: "", birthDate: "" });
       setReceipt(null);
-      triggerToast("Pedido enviado com sucesso!");
+      triggerToast("Pedido gerado com sucesso!");
     } catch (err: any) {
       alert("Ocorreu um erro ao enviar o pedido: " + err.message);
     } finally {
@@ -797,12 +970,23 @@ function ClientSite({
               />
             </div>
 
-            {/* Premium OCR receipt preview wrapper */}
-            <InteractiveScanner
-              receipt={receipt}
-              onFileSelect={setReceipt}
-              expectedAmount={totalCost}
-            />
+            {(!campaign.pixType || campaign.pixType === "manual") ? (
+              <InteractiveScanner
+                receipt={receipt}
+                onFileSelect={setReceipt}
+                expectedAmount={totalCost}
+              />
+            ) : (
+              <div className="rounded-2xl border border-amber-500/10 bg-amber-500/5 p-4.5 space-y-2 text-left animate-fade-in">
+                <div className="flex items-center gap-2 text-amber-500">
+                  <Sparkles size={16} className="animate-pulse" />
+                  <span className="text-xs font-serif font-black uppercase tracking-wider">⚡ Baixa Automática Ativada</span>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed font-medium">
+                  Ao prosseguir, nosso sistema gerará um QR Code e código Copia e Cola dinâmico do Pix. Transfira pelo seu banco e seus números serão confirmados instantaneamente! Não é necessário tirar foto do comprovante.
+                </p>
+              </div>
+            )}
 
             <button
               type="submit"
@@ -812,10 +996,12 @@ function ClientSite({
               {submitting ? (
                 <>
                   <div className="w-4 h-4 rounded-full border-2 border-zinc-950 border-t-transparent animate-spin" />
-                  Enviando Solicitação...
+                  Gerando Pix de Pagamento...
                 </>
               ) : (
-                "Enviar Inscrição de Cotas"
+                campaign.pixType && campaign.pixType !== "manual"
+                  ? `Gerar Pix Copia e Cola - ${money(totalCost)}`
+                  : "Enviar Inscrição de Cotas"
               )}
             </button>
           </form>
@@ -967,6 +1153,169 @@ function ClientSite({
           <p className="whitespace-pre-wrap leading-relaxed">{campaign.rules}</p>
         </div>
       </div>
+
+      {/* Dynamic Pix Checkout Overlay (Baixa Automática) */}
+      <AnimatePresence>
+        {activeCheckoutPayment && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-zinc-950/90 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl text-center space-y-5"
+            >
+              <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400" />
+              
+              {!paymentApprovedAt ? (
+                <>
+                  <div className="space-y-1">
+                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase inline-block">
+                      ⚡ Pagamento Automático
+                    </span>
+                    <h3 className="font-serif text-xl font-bold text-zinc-100">
+                      {activeCheckoutPayment.type === "simulator" ? "Simulador de Pix Ativo" : "Código Pix Gerado"}
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Transfira o valor exato para confirmar e liberar suas cotas na hora!
+                    </p>
+                  </div>
+
+                  {/* QR Code section */}
+                  <div className="relative p-6 rounded-2xl bg-zinc-900/40 border border-zinc-900 inline-block mx-auto min-w-[200px] text-center">
+                    {activeCheckoutPayment.qrCodeBase64 ? (
+                      <img
+                        src={`data:image/jpeg;base64,${activeCheckoutPayment.qrCodeBase64}`}
+                        alt="QR Code Pix"
+                        className="w-44 h-44 mx-auto rounded-lg bg-white p-1.5"
+                      />
+                    ) : (
+                      <div className="w-44 h-44 mx-auto rounded-lg bg-zinc-90 w-full bg-zinc-900 flex items-center justify-center border border-zinc-800 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-amber-500/10 to-transparent animate-[pulse_2s_infinite] pointer-events-none" />
+                        <div className="absolute left-0 right-0 h-0.5 bg-amber-500/30 animate-[bounce_3s_infinite]" style={{ top: '50%' }} />
+                        <QrCode size={48} className="text-zinc-650 animate-pulse text-zinc-500" />
+                      </div>
+                    )}
+                    
+                    <div className="mt-4 flex items-center justify-center gap-1.5 text-xs font-mono font-bold text-zinc-450 text-zinc-400">
+                      <Clock3 className="animate-spin text-amber-550 text-amber-500" size={12} />
+                      <span>Aguardando transferência...</span>
+                    </div>
+                  </div>
+
+                  {/* Price & numbers info */}
+                  <div className="grid grid-cols-2 p-3.5 rounded-xl bg-zinc-900/60 border border-zinc-800 text-left text-xs font-mono">
+                    <div className="border-r border-zinc-800 pr-3">
+                      <span className="text-[10px] text-zinc-500 uppercase block font-sans font-bold">Total a Pagar</span>
+                      <strong className="text-sm text-amber-500">{money(totalCost)}</strong>
+                    </div>
+                    <div className="pl-3">
+                      <span className="text-[10px] text-zinc-500 uppercase block font-sans font-bold">Cotas Selecionadas</span>
+                      <strong className="text-zinc-200 block truncate">{lastSubmittedOrder?.numbers.join(", ") || selected.join(", ")}</strong>
+                    </div>
+                  </div>
+
+                  {/* Pix copy section inside modal */}
+                  <div className="space-y-1.5 text-left">
+                    <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest block font-sans">Pix Copia e Cola</span>
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-850">
+                      <p className="truncate font-mono text-zinc-300 text-xs grow select-all">{activeCheckoutPayment.pixCopiaCola}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(activeCheckoutPayment.pixCopiaCola);
+                          triggerToast("Código Copia e Cola copiado!");
+                        }}
+                        className="p-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-[10px] font-bold uppercase tracking-wider transition shrink-0"
+                      >
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Simulator option helper */}
+                  {activeCheckoutPayment.type === "simulator" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleAutoApproveOrder(activeCheckoutPayment.orderId);
+                        setPaymentApprovedAt(true);
+                        confetti({
+                          particleCount: 150,
+                          spread: 80,
+                          origin: { y: 0.6 }
+                        });
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl border border-dashed border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 text-amber-400 text-[10px] font-black uppercase tracking-wider transition"
+                    >
+                      💡 Confirmar Pagamento de Teste (Simulador)
+                    </button>
+                  )}
+
+                  <p className="text-[10px] text-zinc-500 text-left leading-relaxed">
+                    Instruções: Abra o aplicativo de pagamentos do seu Banco, escolha a opção "Pagar via Pix QR Code" ou "Copia e Cola" e escaneie ou cole o código acima. O site atualizará de tela automaticamente assim que o pagamento for registrado.
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-6 pt-4 text-center">
+                  <div className="relative inline-block mx-auto">
+                    <div className="absolute -inset-1 rounded-full bg-emerald-500/10 blur-md animate-pulse" />
+                    <CheckCircle2 size={64} className="text-emerald-400 relative animate-bounce mx-auto" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="font-serif text-2xl font-black text-emerald-400 tracking-wide uppercase">
+                      Pagamento Aprovado!
+                    </h3>
+                    <p className="text-xs text-zinc-300 leading-relaxed max-w-sm mx-auto">
+                      Parabéns! Sua compra foi identificada com sucesso por nosso sistema automático. Seus bilhetes já estão confirmados e garantidos!
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-200 text-center">
+                    <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block font-bold mb-1">Seus Bilhetes Ativos</span>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1.5">
+                      {lastSubmittedOrder?.numbers.map((n) => (
+                        <span key={n} className="inline-block py-1 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/10 text-emerald-400 font-mono text-xs font-bold leading-none animate-pulse">
+                          {n}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col gap-2">
+                    {campaign.whatsappGroupUrl && (
+                      <a
+                        href={campaign.whatsappGroupUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-500 text-white font-extrabold text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center gap-2 select-none"
+                      >
+                        <MessageCircle size={15} /> Entrar no Grupo Oficial Vip
+                      </a>
+                    )}
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCheckoutPayment(null);
+                        setPaymentApprovedAt(false);
+                      }}
+                      className="w-full py-3 px-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 text-zinc-300 font-extrabold text-xs uppercase tracking-wider transition select-none"
+                    >
+                      Fechar e Voltar ao Início
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -982,6 +1331,9 @@ interface AdminPanelProps {
   adminUser: FirebaseUser | null;
   setAdminUser: React.Dispatch<any>;
   isDemoModeActive: boolean;
+  setIsDemoModeActive: React.Dispatch<React.SetStateAction<boolean>>;
+  isFirebaseActive: boolean;
+  onEnableFallbackDemo: () => void;
   triggerToast: (msg: string) => void;
 }
 
@@ -993,6 +1345,9 @@ function AdminPanel({
   adminUser,
   setAdminUser,
   isDemoModeActive,
+  setIsDemoModeActive,
+  isFirebaseActive,
+  onEnableFallbackDemo,
   triggerToast,
 }: AdminPanelProps) {
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -1000,6 +1355,7 @@ function AdminPanel({
   const [filter, setFilter] = useState<string>("all");
   const [showRaffleGlobus, setShowRaffleGlobus] = useState<boolean>(false);
   const [zoomedReceipt, setZoomedReceipt] = useState<{ url: string; orderName: string } | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const filteredOrders = useMemo(() => {
     return filter === "all" ? orders : orders.filter((o) => o.status === filter);
@@ -1008,6 +1364,7 @@ function AdminPanel({
   // Handle Simulated and real admin authorization
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null);
 
     if (isDemoModeActive) {
       // In interactive demo mode: bypass easily to premium simulation dashboard!
@@ -1015,15 +1372,18 @@ function AdminPanel({
         setAdminUser({ uid: "m-admin", email: "admin@demo.com" } as any);
         triggerToast("Login Administrador Autorizado (Modo Demo)!");
       } else {
-        alert("Credenciais incorretas do modo demo! Use o e-mail: admin@demo.com e senha: 123456");
+        setLoginError("Credenciais incorretas do modo de testes! Use o e-mail: admin@demo.com e senha: 123456");
       }
     } else {
-      if (!authInstance) return;
+      if (!authInstance) {
+        setLoginError("Serviço de autenticação Firebase não disponível no momento. Tente usar o Modo de Testes.");
+        return;
+      }
       try {
         await signInWithEmailAndPassword(authInstance, loginForm.email, loginForm.password);
         triggerToast("Sessão autenticada via Firebase!");
       } catch (err: any) {
-        alert("Erro na autenticação do Firebase: " + err.message);
+        setLoginError(err.message || String(err));
       }
     }
   };
@@ -1099,8 +1459,13 @@ function AdminPanel({
 
   // Login Gate
   if (!adminUser) {
+    const isConfigError = loginError && (
+      loginError.includes("auth/configuration-not-found") ||
+      loginError.includes("configuration-not-found")
+    );
+
     return (
-      <div className="mx-auto flex max-w-md items-center justify-center py-12 md:py-20">
+      <div className="mx-auto flex max-w-md flex-col gap-4 py-8 md:py-16">
         <div className="w-full rounded-3xl border border-zinc-900 bg-zinc-950 p-6 md:p-8 shadow-2xl relative">
           <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-600 to-amber-400 rounded-t-3xl" />
           
@@ -1118,13 +1483,74 @@ function AdminPanel({
             </div>
           </div>
 
+          {/* Warning state regarding Mode selection */}
+          <div className="mb-4 flex items-center justify-between p-2 rounded-xl bg-zinc-900/40 border border-zinc-800 text-[10px]">
+            <span className="text-zinc-400 truncate">
+              Modo Atual: <strong className="text-zinc-200 uppercase">{isDemoModeActive ? "Demonstração (Local)" : "Online (Firebase)"}</strong>
+            </span>
+            <button
+              onClick={() => {
+                setLoginError(null);
+                if (isDemoModeActive) {
+                  setIsDemoModeActive(false);
+                  triggerToast("Carregando ambiente Firebase...");
+                } else {
+                  onEnableFallbackDemo();
+                }
+              }}
+              type="button"
+              className="py-1 px-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-500 font-extrabold transition font-sans text-[10px] uppercase tracking-wider cursor-pointer"
+            >
+              {isDemoModeActive ? "Mudar p/ Firebase" : "Mudar p/ Demo"}
+            </button>
+          </div>
+
+          {loginError && (
+            <div className="mb-5 p-4 rounded-2xl border border-rose-500/20 bg-rose-950/10 space-y-3.5 text-left text-xs text-rose-300">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="shrink-0 text-rose-500 mt-0.5" size={16} />
+                <div className="space-y-1">
+                  <h4 className="font-serif font-black uppercase text-[10px] tracking-wider text-rose-400">Falha ao Autenticar</h4>
+                  <p className="leading-relaxed text-[11px] text-zinc-300">{loginError}</p>
+                </div>
+              </div>
+
+              {isConfigError && (
+                <div className="pt-3 border-t border-rose-950/50 space-y-3 text-[10.5px] leading-relaxed text-zinc-350 font-medium">
+                  <p className="font-semibold text-rose-350 flex items-center gap-1.5 font-serif uppercase tracking-wider text-[9.5px]">
+                    <Sparkles size={11} className="text-amber-500" /> Como resolver este erro no console:
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1.5 pl-1 text-zinc-400 select-all leading-normal">
+                    <li>Acesse o <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-amber-450 text-amber-500 font-bold hover:underline inline-flex items-center gap-0.5">Console do Firebase <ExternalLink size={10} /></a>.</li>
+                    <li>No menu esquerdo, vá em <strong className="text-zinc-300">Autenticação</strong> (Authentication).</li>
+                    <li>Clique na aba <strong className="text-zinc-300">Sign-in method</strong> (Método de login).</li>
+                    <li>Clique em <strong className="text-zinc-300">Adicionar novo provedor</strong> (Add new provider).</li>
+                    <li>Selecione <strong className="text-zinc-300">E-mail/Senha</strong> (Email/Password), ative a primeira chave de autenticação e clique em <strong className="text-zinc-300">Salvar</strong>.</li>
+                  </ol>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginError(null);
+                        onEnableFallbackDemo();
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500 hover:text-zinc-950 text-amber-500 text-[10px] font-black uppercase tracking-wider transition text-center cursor-pointer"
+                    >
+                      Burlar e Usar Simulação (Modo Demo)
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-zinc-400">E-mail Administrativo</label>
               <input
                 type="email"
                 required
-                placeholder="Ex: admin@demo.com"
+                placeholder={isDemoModeActive ? "admin@demo.com" : "Ex: admin@seusite.com"}
                 value={loginForm.email}
                 onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/85 transition"
@@ -1136,7 +1562,7 @@ function AdminPanel({
               <input
                 type="password"
                 required
-                placeholder="Ex: 123456"
+                placeholder={isDemoModeActive ? "123456" : "Sua senha de administrador"}
                 value={loginForm.password}
                 onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/85 transition"
@@ -1145,7 +1571,7 @@ function AdminPanel({
 
             <button
               type="submit"
-              className="w-full py-4 px-5 rounded-2xl bg-amber-500 text-zinc-950 hover:bg-amber-400 font-extrabold text-xs uppercase tracking-wider active:scale-98 transition duration-200 shadow-md flex items-center justify-center"
+              className="w-full py-4 px-5 rounded-2xl bg-amber-500 text-zinc-950 hover:bg-amber-400 font-extrabold text-xs uppercase tracking-wider active:scale-98 transition duration-200 shadow-md flex items-center justify-center cursor-pointer"
             >
               Autenticar Painel
             </button>
@@ -1286,6 +1712,62 @@ function AdminPanel({
                 onChange={(e) => setCampaign({ ...campaign, pixHolder: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
               />
+            </div>
+
+            <div className="space-y-2.5 p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800">
+              <label className="text-xs font-serif font-black text-amber-500 uppercase tracking-widest block">Método de Baixa/Confirmação Pix</label>
+              
+              <div className="grid gap-2 grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => setCampaign({ ...campaign, pixType: "manual" })}
+                  className={`py-2 px-1 rounded-xl text-[10px] font-black uppercase tracking-wider text-center border transition ${
+                    (!campaign.pixType || campaign.pixType === "manual")
+                      ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white"
+                  }`}
+                >
+                  Manual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCampaign({ ...campaign, pixType: "simulator" })}
+                  className={`py-2 px-1 rounded-xl text-[10px] font-black uppercase tracking-wider text-center border transition ${
+                    campaign.pixType === "simulator"
+                      ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white"
+                  }`}
+                >
+                  Simulador
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCampaign({ ...campaign, pixType: "mp_pix" })}
+                  className={`py-2 px-1 rounded-xl text-[10px] font-black uppercase tracking-wider text-center border transition ${
+                    campaign.pixType === "mp_pix"
+                      ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white"
+                  }`}
+                >
+                  Mercado Pago
+                </button>
+              </div>
+
+              {campaign.pixType === "mp_pix" && (
+                <div className="pt-2.5 space-y-1.5 border-t border-zinc-800/80 animate-fade-in text-left">
+                  <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest block">Mercado Pago Access Token</span>
+                  <input
+                    type="password"
+                    placeholder="Ex: APP_USR-XXXXXXXXXXXXXXXX"
+                    value={campaign.mpAccessToken || ""}
+                    onChange={(e) => setCampaign({ ...campaign, mpAccessToken: e.target.value })}
+                    className="w-full rounded-xl bg-zinc-950 border border-zinc-850 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition font-mono"
+                  />
+                  <p className="text-[9px] text-zinc-500 leading-relaxed font-sans font-medium">
+                    Insira o token de produção do Mercado Pago. Ele é usado client-side de forma segura para criar as cobranças Pix dinâmicas no seu checkout.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">
