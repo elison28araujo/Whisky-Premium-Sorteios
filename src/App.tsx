@@ -117,6 +117,7 @@ const DEFAULT_CAMPAIGN: Campaign = {
   whatsappContact: "91985066711",
   pixType: "simulator",
   mpAccessToken: "",
+  updatedAt: 0,
 };
 
 // Mask Formatters
@@ -172,7 +173,7 @@ export default function App() {
   });
   const [adminMode, setAdminMode] = useState<boolean>(false);
   const [adminUser, setAdminUser] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [showToast, setShowToast] = useState<string>("");
   // Sync / Load logic
   useEffect(() => {
@@ -201,17 +202,40 @@ export default function App() {
 
       unsubCampaign = onSnapshot(doc(dbInstance, "settings", "campaign"), async (snap) => {
         if (!snap.exists()) {
-          try {
-            await setDoc(doc(dbInstance, "settings", "campaign"), DEFAULT_CAMPAIGN);
-            setCampaign(DEFAULT_CAMPAIGN);
-            localStorage.setItem("whisky_premium_settings", JSON.stringify(DEFAULT_CAMPAIGN));
-          } catch (e) {
-            console.error("Incapaz de persistir defaults no Firestore real:", e);
+          const localStr = localStorage.getItem("whisky_premium_settings");
+          if (localStr) {
+            try {
+              const localCampaign = JSON.parse(localStr);
+              setDoc(doc(dbInstance, "settings", "campaign"), localCampaign).catch(e => console.warn("Background setup error:", e));
+            } catch (e) {
+              console.warn("Falha ao inicializar campanha no Firestore com dados locais:", e);
+            }
+          } else {
+            try {
+              setDoc(doc(dbInstance, "settings", "campaign"), DEFAULT_CAMPAIGN).catch(e => console.warn("Background setup error:", e));
+            } catch (e) {}
           }
         } else {
-          const loadedCampaign = { ...DEFAULT_CAMPAIGN, ...snap.data() };
-          setCampaign(loadedCampaign);
-          localStorage.setItem("whisky_premium_settings", JSON.stringify(loadedCampaign));
+          const serverData = snap.data();
+          const serverUpdatedAt = Number(serverData?.updatedAt || 0);
+
+          // Get newest local updatedAt property
+          let localUpdatedAt = 0;
+          const localStr = localStorage.getItem("whisky_premium_settings");
+          if (localStr) {
+            try {
+              const parsed = JSON.parse(localStr);
+              localUpdatedAt = Number(parsed.updatedAt || 0);
+            } catch (e) {}
+          }
+
+          // ONLY update local storage and react state if server is strictly newer
+          // or has the same signature of initial settings (0 vs 0)
+          if (serverUpdatedAt > localUpdatedAt || (serverUpdatedAt === 0 && localUpdatedAt === 0)) {
+            const loadedCampaign = { ...DEFAULT_CAMPAIGN, ...serverData };
+            setCampaign(loadedCampaign);
+            localStorage.setItem("whisky_premium_settings", JSON.stringify(loadedCampaign));
+          }
         }
         setLoading(false);
       }, (err) => {
@@ -232,7 +256,11 @@ export default function App() {
       // Local setup fallback if Firebase gets initialized without configuration
       const localCampaign = localStorage.getItem("whisky_premium_settings");
       if (localCampaign) {
-        setCampaign(JSON.parse(localCampaign));
+        try {
+          setCampaign({ ...DEFAULT_CAMPAIGN, ...JSON.parse(localCampaign) });
+        } catch (e) {
+          setCampaign(DEFAULT_CAMPAIGN);
+        }
       } else {
         localStorage.setItem("whisky_premium_settings", JSON.stringify(DEFAULT_CAMPAIGN));
       }
@@ -524,10 +552,10 @@ function ClientSite({
   const handleAutoApproveOrder = async (orderId: string) => {
     try {
       if (isFirebaseActive && dbInstance) {
-        await updateDoc(doc(dbInstance, "orders", orderId), {
+        updateDoc(doc(dbInstance, "orders", orderId), {
           status: "approved",
           reviewedAt: serverTimestamp(),
-        });
+        }).catch(e => console.warn(e));
       } else {
         const updated = orders.map((o) => {
           if (o.id === orderId) {
@@ -651,16 +679,20 @@ function ClientSite({
 
       if (isFirebaseActive && dbInstance) {
         try {
-          // Real Firebase persistence
-          const docRef = await addDoc(collection(dbInstance, "orders"), newOrder);
-          finalOrderId = docRef.id;
+          // Real Firebase persistence synchronously generated ID
+          const docTarget = doc(collection(dbInstance, "orders"));
+          finalOrderId = docTarget.id;
+          
+          setDoc(docTarget, { ...newOrder, id: finalOrderId }).catch(firebaseErr => {
+             console.warn("Erro ao persistir pedido no Firestore (mantido localmente):", firebaseErr);
+          });
           
           // Keep localstorage in sync with the real document ID
           const updatedWithServerId = [{ ...newOrder, id: finalOrderId }, ...orders];
           setOrders(updatedWithServerId);
           localStorage.setItem("whisky_premium_orders", JSON.stringify(updatedWithServerId));
         } catch (firebaseErr: any) {
-          console.warn("Erro ao persistir pedido no Firestore (mantido localmente):", firebaseErr);
+          console.warn("Sync error setup:", firebaseErr);
         }
       }
 
@@ -1362,6 +1394,7 @@ function AdminPanel({
         ...campaign,
         ticketPrice: Number(campaign.ticketPrice),
         totalNumbers: Number(campaign.totalNumbers),
+        updatedAt: Date.now(), // Unique increment timestamp for offline-first replication safety
       };
 
       // Always save to localStorage and React state first for zero-latency, offline-first reliability
@@ -1370,9 +1403,11 @@ function AdminPanel({
 
       if (isFirebaseActive && dbInstance) {
         try {
-          await setDoc(doc(dbInstance, "settings", "campaign"), updatedCampaign);
+          setDoc(doc(dbInstance, "settings", "campaign"), updatedCampaign).catch(fbErr => {
+             console.warn("Erro ao sincronizar com Firestore (Salvo apenas localmente no seu navegador):", fbErr);
+          });
         } catch (fbErr: any) {
-          console.warn("Erro ao sincronizar com Firestore (Salvo apenas localmente no seu navegador):", fbErr);
+          console.warn("Erro logic com Firestore :", fbErr);
         }
       }
       triggerToast("Configurações da campanha salvas com sucesso!");
@@ -1397,12 +1432,14 @@ function AdminPanel({
 
       if (isFirebaseActive && dbInstance) {
         try {
-          await updateDoc(doc(dbInstance, "orders", orderId), {
+          updateDoc(doc(dbInstance, "orders", orderId), {
             status,
             reviewedAt: serverTimestamp(),
+          }).catch(fbErr => {
+             console.warn("Erro ao salvar status no Firestore (atualizado apenas localmente):", fbErr);
           });
         } catch (fbErr) {
-          console.warn("Erro ao salvar status no Firestore (atualizado apenas localmente):", fbErr);
+          console.warn("Update setup err:", fbErr);
         }
       }
       triggerToast(`Status do pedido atualizado para ${status === "approved" ? "Aprovado" : "Cancelado"}!`);

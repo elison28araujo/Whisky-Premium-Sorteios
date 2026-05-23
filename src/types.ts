@@ -19,6 +19,7 @@ export interface Campaign {
   whatsappContact?: string;
   pixType?: "manual" | "mp_pix" | "simulator";
   mpAccessToken?: string;
+  updatedAt?: number;
 }
 
 export interface Order {
