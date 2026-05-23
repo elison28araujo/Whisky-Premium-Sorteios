@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { DollarSign, ShieldCheck, Clock3, UserCheck, Inbox, Flame, Trash2 } from "lucide-react";
+import { DollarSign, ShieldCheck, Clock3, UserCheck, Inbox, Flame, Trash2, RotateCcw } from "lucide-react";
 import { Order, Campaign } from "../types";
 
 interface AdminStatsProps {
@@ -121,13 +121,13 @@ export function AdminStats({ orders, campaign, onPurgeLocalStorage }: AdminStats
           {onPurgeLocalStorage && (
             <button
               onClick={() => {
-                if (confirm("Deseja realmente apagar todos os pedidos de teste salvos LOCALMENTE?")) {
+                if (confirm("Deseja realmente resetar TODO o sistema? Isso apagará permanentemente todas as vendas (locais e online) e o histórico de sorteios para iniciar um novo ciclo.")) {
                   onPurgeLocalStorage();
                 }
               }}
-              className="text-[10px] text-red-400 hover:text-red-300 transition flex items-center gap-1 font-semibold uppercase font-sans border border-red-900/40 hover:border-red-500/30 px-2 py-1 rounded bg-red-950/25 active:scale-95"
+              className="text-[10px] text-red-100 hover:text-white transition flex items-center gap-1.5 font-bold uppercase font-mono border border-red-500/40 hover:bg-red-600/20 px-3 py-1.5 rounded-lg bg-red-950/40 active:scale-95 shadow-lg shadow-red-900/10"
             >
-              <Trash2 size={11} /> Resetar Vendas Locais para Teste
+              <RotateCcw size={12} className="animate-spin-slow" /> Resetar Ciclo de Vendas e Sorteios
             </button>
           )}
         </h4>

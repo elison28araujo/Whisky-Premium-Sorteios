@@ -19,6 +19,7 @@ import {
   setDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   collection,
   onSnapshot,
   query,
@@ -874,23 +875,27 @@ function ClientSite({
         <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-zinc-900 shadow-2xl">
           
           {/* Main Visual Banner */}
-          <div className="relative h-60 md:h-[320px] w-full overflow-hidden flex items-center justify-center">
+          <div className="relative h-60 md:h-[400px] w-full overflow-hidden">
             <img
               src={campaign.bannerImageUrl || whiskyBannerAsset}
               alt="Macallan Premium Scotch Whiskey Luxury Shot"
               className="w-full h-full object-cover select-none"
               referrerPolicy="no-referrer"
             />
-            {/* Dark vignette blending */}
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-black/30" />
-            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-1 md:space-y-2 text-center p-6">
-              <span className="bg-amber-500 text-zinc-950 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">
+            {/* Soft vignette only */}
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/60 to-transparent" />
+          </div>
+
+          {/* Dedicated Title Section - Below image to avoid overlap */}
+          <div className="p-6 md:p-8 text-center bg-zinc-900 relative border-b border-white/5">
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+              <span className="bg-amber-500 text-zinc-950 px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.2em] uppercase shadow-xl border-2 border-zinc-900">
                 CAMPANHA PRINCIPAL VIP
               </span>
-              <h2 className="font-serif text-2xl md:text-5xl font-extrabold text-white tracking-tight drop-shadow-[0_2px_15px_rgba(0,0,0,1)] leading-tight max-w-2xl">
-                {campaign.prizeName}
-              </h2>
             </div>
+            <h2 className="font-serif text-2xl md:text-3xl font-bold text-white tracking-tight leading-tight mt-1 max-w-3xl mx-auto">
+              {campaign.prizeName}
+            </h2>
           </div>
 
           {/* Sorteio Specifications dashboard */}
@@ -1553,10 +1558,26 @@ function AdminPanel({
     }
   };
 
-  const handlePurgeTestOrders = () => {
+  const handlePurgeTestOrders = async () => {
+    // Instant local cleanup
     setOrders([]);
-    localStorage.setItem("whisky_premium_orders", JSON.stringify([]));
-    triggerToast("Banco de dados de testes locais resetado!");
+    localStorage.removeItem("whisky_premium_orders");
+    localStorage.removeItem("whisky_draw_history");
+    
+    if (isFirebaseActive && dbInstance && orders.length > 0) {
+      triggerToast("Sincronizando limpeza com o servidor...");
+      try {
+        // Delete each order record from Firestore
+        const deletePromises = orders.map(o => deleteDoc(doc(dbInstance, "orders", o.id)));
+        await Promise.all(deletePromises);
+        triggerToast("Vendas e sorteios resetados com sucesso em todo o sistema!");
+      } catch (err: any) {
+        console.warn("Erro ao limpar Firestore:", err);
+        triggerToast("Resetado localmente, mas houve erro ao limpar o servidor.");
+      }
+    } else {
+      triggerToast("Vendas locais e histórico de sorteios resetados!");
+    }
   };
 
   // Login Gate
