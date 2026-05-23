@@ -33,7 +33,6 @@ import {
   CheckCircle2,
   Clock3,
   XCircle,
-  Upload,
   Settings,
   Ticket,
   LogOut,
@@ -56,7 +55,6 @@ import {
 import { Campaign, Order } from "./types";
 import confetti from "canvas-confetti";
 import { NumberedGrid } from "./components/NumberedGrid";
-import { InteractiveScanner } from "./components/InteractiveScanner";
 import { Sorteador } from "./components/Sorteador";
 import { AdminStats } from "./components/AdminStats";
 
@@ -114,10 +112,10 @@ const DEFAULT_CAMPAIGN: Campaign = {
   pixKey: "91985066711",
   pixHolder: "ELISON DA SILVA ARAUJO - NUPAGAMENTOS",
   rules:
-    "Participação permitida apenas para maiores de 18 anos. Os números são confirmados somente de forma eletrônica após aprovação manual ou automática do Pix pelo administrador do sistema. A entrega do produto é realizada via transportadora segurada ou em mãos conforme regulamento.",
+    "Participação permitida apenas para maiores de 18 anos. Os números são confirmados somente de forma eletrônica após confirmação instantânea do Pix pelo sistema. A entrega do produto é realizada via transportadora segurada ou em mãos conforme regulamento.",
   whatsappGroupUrl: "https://chat.whatsapp.com/GgGvOnfIasvEnT90pLaSeX",
   whatsappContact: "91985066711",
-  pixType: "manual",
+  pixType: "simulator",
   mpAccessToken: "",
 };
 
@@ -156,8 +154,6 @@ export default function App() {
   const [adminUser, setAdminUser] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [showToast, setShowToast] = useState<string>("");
-  const [isDemoModeActive, setIsDemoModeActive] = useState<boolean>(!isFirebaseActive);
-
   // Sync / Load logic
   useEffect(() => {
     let unsubAuth = () => {};
@@ -187,12 +183,21 @@ export default function App() {
       unsubOrders = onSnapshot(q, (snap) => {
         setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
       }, (error) => {
-        console.warn("Permissão negada ou offline no Firestore. Alternando para redundância local.");
-        enableFallbackDemo();
+        console.warn("Erro ao escutar ordens de pagamento no Firestore:", error);
       });
     } else {
-      // Offline/Demo Mode implementation using localStorage
-      enableFallbackDemo();
+      // Local setup fallback if Firebase gets initialized without configuration
+      const localCampaign = localStorage.getItem("whisky_premium_settings");
+      if (localCampaign) {
+        setCampaign(JSON.parse(localCampaign));
+      } else {
+        localStorage.setItem("whisky_premium_settings", JSON.stringify(DEFAULT_CAMPAIGN));
+      }
+      const localOrders = localStorage.getItem("whisky_premium_orders");
+      if (localOrders) {
+        setOrders(JSON.parse(localOrders));
+      }
+      setLoading(false);
     }
 
     return () => {
@@ -201,52 +206,6 @@ export default function App() {
       unsubOrders();
     };
   }, []);
-
-  const enableFallbackDemo = () => {
-    setIsDemoModeActive(true);
-
-    // Initial load from localstorage
-    const localCampaign = localStorage.getItem("whisky_premium_settings");
-    if (localCampaign) {
-      setCampaign(JSON.parse(localCampaign));
-    } else {
-      localStorage.setItem("whisky_premium_settings", JSON.stringify(DEFAULT_CAMPAIGN));
-    }
-
-    const localOrders = localStorage.getItem("whisky_premium_orders");
-    if (localOrders) {
-      setOrders(JSON.parse(localOrders));
-    } else {
-      // Mock initial orders to make the developer preview look active and alive!
-      const initialMockOrders: Order[] = [
-        {
-          id: "m-1",
-          name: "Gabriel Neves de Souza",
-          cpf: "344.223.119-02",
-          whatsapp: "(11) 98711-2300",
-          birthDate: "1992-06-15",
-          numbers: ["007", "045"],
-          amount: 30,
-          status: "approved",
-          createdAt: { seconds: Date.now() / 1000 - 80000 },
-        },
-        {
-          id: "m-2",
-          name: "Mariana Alvarenga Santos",
-          cpf: "128.944.331-10",
-          whatsapp: "(21) 97121-5060",
-          birthDate: "1995-11-21",
-          numbers: ["100"],
-          amount: 15,
-          status: "pending",
-          createdAt: { seconds: Date.now() / 1000 - 800 },
-        },
-      ];
-      localStorage.setItem("whisky_premium_orders", JSON.stringify(initialMockOrders));
-      setOrders(initialMockOrders);
-    }
-    setLoading(false);
-  };
 
   const approvedNumbers = useMemo(() => {
     const set = new Set<string>();
@@ -353,14 +312,6 @@ export default function App() {
   return (
     <div className="min-h-screen font-sans bg-zinc-950 text-amber-50 pb-20 selection:bg-amber-500/20 selection:text-amber-200">
       
-      {/* Dynamic Demo Mode Warning Banner */}
-      {isDemoModeActive && (
-        <div className="bg-gradient-to-r from-amber-600 to-amber-800 text-zinc-950 py-2.5 px-4 text-center text-xs font-black tracking-wide flex items-center justify-center gap-2 select-none z-50 shadow-lg">
-          <Activity size={14} className="animate-pulse shrink-0" />
-          <span>MODO INTERATIVO LOCAL ATIVO: Pedidos persistidos localmente no navegador para total visualização do fluxo!</span>
-        </div>
-      )}
-
       {/* Main Header */}
       <header className="sticky top-0 z-40 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-900">
         <div className="mx-auto max-w-7xl flex items-center justify-between p-4 md:p-5">
@@ -402,10 +353,7 @@ export default function App() {
               setOrders={setOrders}
               adminUser={adminUser}
               setAdminUser={setAdminUser}
-              isDemoModeActive={isDemoModeActive}
-              setIsDemoModeActive={setIsDemoModeActive}
               isFirebaseActive={isFirebaseActive}
-              onEnableFallbackDemo={enableFallbackDemo}
               triggerToast={triggerToast}
             />
           </motion.div>
@@ -424,7 +372,6 @@ export default function App() {
               approvedNumbers={approvedNumbers}
               pendingNumbers={pendingNumbers}
               availableNumbers={availableNumbers}
-              isDemoModeActive={isDemoModeActive}
               triggerToast={triggerToast}
             />
           </motion.div>
@@ -459,7 +406,6 @@ interface ClientSiteProps {
   approvedNumbers: Set<string>;
   pendingNumbers: Set<string>;
   availableNumbers: string[];
-  isDemoModeActive: boolean;
   triggerToast: (msg: string) => void;
 }
 
@@ -470,12 +416,10 @@ function ClientSite({
   approvedNumbers,
   pendingNumbers,
   availableNumbers,
-  isDemoModeActive,
   triggerToast,
 }: ClientSiteProps) {
   const [selected, setSelected] = useState<string[]>([]);
   const [form, setForm] = useState({ name: "", cpf: "", whatsapp: "", birthDate: "" });
-  const [receipt, setReceipt] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [searchCpf, setSearchCpf] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState<string>("");
@@ -536,7 +480,7 @@ function ClientSite({
 
   const handleAutoApproveOrder = async (orderId: string) => {
     try {
-      if (!isDemoModeActive && isFirebaseActive && dbInstance) {
+      if (isFirebaseActive && dbInstance) {
         await updateDoc(doc(dbInstance, "orders", orderId), {
           status: "approved",
           reviewedAt: serverTimestamp(),
@@ -626,13 +570,6 @@ function ClientSite({
       return;
     }
 
-    const isAutomatic = campaign.pixType && campaign.pixType !== "manual";
-
-    if (!isAutomatic && !receipt) {
-      alert("Comprovante PIX obrigatório para enviar o pedido.");
-      return;
-    }
-
     // Age calculation
     const birthday = new Date(form.birthDate);
     const ageDiff = Date.now() - birthday.getTime();
@@ -650,8 +587,6 @@ function ClientSite({
     const newOrderId = "ord-" + Date.now();
 
     try {
-      let documentUrl = "https://picsum.photos/seed/pixreceipt/400/600"; // realistic placeholder
-      
       const newOrder: Order = {
         id: newOrderId,
         name: form.name,
@@ -661,13 +596,12 @@ function ClientSite({
         numbers: selected,
         amount: totalCost,
         status: "pending",
-        receiptUrl: !isAutomatic ? documentUrl : undefined,
-        createdAt: isDemoModeActive ? { seconds: Date.now() / 1000 } : serverTimestamp(),
+        createdAt: isFirebaseActive ? serverTimestamp() : { seconds: Date.now() / 1000 },
       };
 
       let finalOrderId = newOrderId;
 
-      if (!isDemoModeActive && isFirebaseActive && dbInstance) {
+      if (isFirebaseActive && dbInstance) {
         // Real Firebase persistence
         const docRef = await addDoc(collection(dbInstance, "orders"), newOrder);
         finalOrderId = docRef.id;
@@ -678,67 +612,57 @@ function ClientSite({
         localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
       }
 
-      if (isAutomatic) {
-        if (campaign.pixType === "mp_pix") {
-          try {
-            const bodyPayload = {
-              transaction_amount: Number(totalCost),
-              payment_method_id: "pix",
-              payer: {
-                email: `${form.cpf.replace(/\D/g, "")}@whiskypremium.com.br`,
-                first_name: form.name.split(" ")[0] || "Comprador",
-                last_name: form.name.split(" ").slice(1).join(" ") || "Privado",
-                identification: {
-                  type: "CPF",
-                  number: form.cpf.replace(/\D/g, "")
-                }
-              },
-              description: `Reserva - ${campaign.siteName}`
-            };
+      if (campaign.pixType === "mp_pix") {
+        try {
+          const bodyPayload = {
+            transaction_amount: Number(totalCost),
+            payment_method_id: "pix",
+            payer: {
+              email: `${form.cpf.replace(/\D/g, "")}@whiskypremium.com.br`,
+              first_name: form.name.split(" ")[0] || "Comprador",
+              last_name: form.name.split(" ").slice(1).join(" ") || "Privado",
+              identification: {
+                type: "CPF",
+                number: form.cpf.replace(/\D/g, "")
+              }
+            },
+            description: `Reserva - ${campaign.siteName}`
+          };
 
-            const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${campaign.mpAccessToken}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(bodyPayload)
-            });
+          const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${campaign.mpAccessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(bodyPayload)
+          });
 
-            if (!mpRes.ok) {
-              const errData = await mpRes.json();
-              throw new Error(errData.message || "Erro retornado pelo Mercado Pago. Verifique as credenciais.");
-            }
-
-            const mpData = await mpRes.json();
-            const paymentId = String(mpData.id);
-            const qrCodeString = mpData.point_of_interaction?.transaction_data?.qr_code || "";
-            const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64 || "";
-
-            if (!qrCodeString) {
-              throw new Error("Não foi possível carregar o código Copia e Cola do Mercado Pago.");
-            }
-
-            setActiveCheckoutPayment({
-              orderId: finalOrderId,
-              pixCopiaCola: qrCodeString,
-              qrCodeBase64: qrCodeBase64,
-              paymentId: paymentId,
-              expiresAt: Date.now() + 10 * 60 * 1000,
-              type: "mp_pix"
-            });
-          } catch (mpErr: any) {
-            console.error("Erro MP API:", mpErr);
-            alert(`Falha ao gerar o Pix via Mercado Pago: ${mpErr.message}. Iniciando no modo SIMULADOR para testes.`);
-            setActiveCheckoutPayment({
-              orderId: finalOrderId,
-              pixCopiaCola: `00020101021226830014br.gov.bcb.pix2561whiskypremium.com.br/pix/sim-${finalOrderId}`,
-              expiresAt: Date.now() + 10 * 60 * 1000,
-              type: "simulator"
-            });
+          if (!mpRes.ok) {
+            const errData = await mpRes.json();
+            throw new Error(errData.message || "Erro retornado pelo Mercado Pago. Verifique as credenciais.");
           }
-        } else {
-          // Simulator
+
+          const mpData = await mpRes.json();
+          const paymentId = String(mpData.id);
+          const qrCodeString = mpData.point_of_interaction?.transaction_data?.qr_code || "";
+          const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64 || "";
+
+          if (!qrCodeString) {
+            throw new Error("Não foi possível carregar o código Copia e Cola do Mercado Pago.");
+          }
+
+          setActiveCheckoutPayment({
+            orderId: finalOrderId,
+            pixCopiaCola: qrCodeString,
+            qrCodeBase64: qrCodeBase64,
+            paymentId: paymentId,
+            expiresAt: Date.now() + 10 * 60 * 1000,
+            type: "mp_pix"
+          });
+        } catch (mpErr: any) {
+          console.error("Erro MP API:", mpErr);
+          alert(`Falha ao gerar o Pix via Mercado Pago: ${mpErr.message}. Iniciando no modo SIMULADOR para testes.`);
           setActiveCheckoutPayment({
             orderId: finalOrderId,
             pixCopiaCola: `00020101021226830014br.gov.bcb.pix2561whiskypremium.com.br/pix/sim-${finalOrderId}`,
@@ -746,18 +670,20 @@ function ClientSite({
             type: "simulator"
           });
         }
-
-        setSubmitSuccess("Seu código de pagamento PIX automático foi gerado com sucesso!");
       } else {
-        setSubmitSuccess(
-          "Seu pedido foi enviado para análise! O administrador irá conferir o comprovante e você poderá acompanhar o status de aprovação digitando seu CPF na busca."
-        );
+        // Simulator
+        setActiveCheckoutPayment({
+          orderId: finalOrderId,
+          pixCopiaCola: `00020101021226830014br.gov.bcb.pix2561whiskypremium.com.br/pix/sim-${finalOrderId}`,
+          expiresAt: Date.now() + 10 * 60 * 1000,
+          type: "simulator"
+        });
       }
 
+      setSubmitSuccess("Seu código de pagamento PIX automático foi gerado com sucesso!");
       setLastSubmittedOrder({ ...newOrder, id: finalOrderId });
       setSelected([]);
       setForm({ name: "", cpf: "", whatsapp: "", birthDate: "" });
-      setReceipt(null);
       triggerToast("Pedido gerado com sucesso!");
     } catch (err: any) {
       alert("Ocorreu um erro ao enviar o pedido: " + err.message);
@@ -970,28 +896,20 @@ function ClientSite({
               />
             </div>
 
-            {(!campaign.pixType || campaign.pixType === "manual") ? (
-              <InteractiveScanner
-                receipt={receipt}
-                onFileSelect={setReceipt}
-                expectedAmount={totalCost}
-              />
-            ) : (
-              <div className="rounded-2xl border border-amber-500/10 bg-amber-500/5 p-4.5 space-y-2 text-left animate-fade-in">
-                <div className="flex items-center gap-2 text-amber-500">
-                  <Sparkles size={16} className="animate-pulse" />
-                  <span className="text-xs font-serif font-black uppercase tracking-wider">⚡ Baixa Automática Ativada</span>
-                </div>
-                <p className="text-[11px] text-zinc-400 leading-relaxed font-medium">
-                  Ao prosseguir, nosso sistema gerará um QR Code e código Copia e Cola dinâmico do Pix. Transfira pelo seu banco e seus números serão confirmados instantaneamente! Não é necessário tirar foto do comprovante.
-                </p>
+            <div className="rounded-2xl border border-amber-500/10 bg-amber-500/5 p-4.5 space-y-2 text-left animate-fade-in font-sans">
+              <div className="flex items-center gap-2 text-amber-500">
+                <Sparkles size={16} className="animate-pulse" />
+                <span className="text-xs font-serif font-black uppercase tracking-wider">⚡ Baixa Automática de Cotas</span>
               </div>
-            )}
+              <p className="text-[11px] text-zinc-400 leading-relaxed font-medium">
+                Ao prosseguir, nosso sistema gerará um QR Code e código Copia e Cola dinâmico do Pix. Transfira pelo seu banco e seus números serão confirmados instantaneamente! Não é necessário tirar foto ou enviar o comprovante.
+              </p>
+            </div>
 
             <button
               type="submit"
               disabled={submitting || selected.length === 0}
-              className="w-full py-4 px-5 rounded-2xl bg-amber-500 text-zinc-950 hover:bg-amber-400 font-extrabold text-xs uppercase tracking-wider active:scale-98 transition duration-200 flex items-center justify-center gap-2 glow-btn disabled:opacity-40 disabled:pointer-events-none select-none mt-4"
+              className="w-full py-4 px-5 rounded-2xl bg-amber-500 text-zinc-950 hover:bg-amber-400 font-extrabold text-xs uppercase tracking-wider active:scale-98 transition duration-200 flex items-center justify-center gap-2 glow-btn disabled:opacity-40 disabled:pointer-events-none select-none mt-4 cursor-pointer"
             >
               {submitting ? (
                 <>
@@ -999,9 +917,7 @@ function ClientSite({
                   Gerando Pix de Pagamento...
                 </>
               ) : (
-                campaign.pixType && campaign.pixType !== "manual"
-                  ? `Gerar Pix Copia e Cola - ${money(totalCost)}`
-                  : "Enviar Inscrição de Cotas"
+                `Gerar Pix Copia e Cola - ${money(totalCost)}`
               )}
             </button>
           </form>
@@ -1011,7 +927,7 @@ function ClientSite({
               <div className="flex items-start gap-3">
                 <CheckCircle2 size={20} className="text-emerald-400 shrink-0 mt-0.5 animate-bounce" />
                 <div className="space-y-1">
-                  <h4 className="font-serif font-black text-xs text-emerald-300 uppercase tracking-widest">Inscrição Enviada!</h4>
+                  <h4 className="font-serif font-black text-xs text-emerald-300 uppercase tracking-widest">Reserva Efetuada!</h4>
                   <p className="text-xs text-zinc-300 leading-relaxed">
                     {submitSuccess}
                   </p>
@@ -1025,15 +941,6 @@ function ClientSite({
                     <p><span className="text-zinc-500 font-sans font-semibold">Cotas:</span> {lastSubmittedOrder.numbers.join(", ")}</p>
                     <p><span className="text-zinc-500 font-sans font-semibold">Total:</span> {money(lastSubmittedOrder.amount)}</p>
                   </div>
-
-                  <a
-                    href={getWhatsAppReceiptLink(lastSubmittedOrder)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-500 text-white text-[11px] font-black uppercase tracking-wider text-center transition active:scale-95 flex items-center justify-center gap-2 select-none"
-                  >
-                    <MessageCircle size={14} /> Enviar Comprovante via WhatsApp
-                  </a>
                 </div>
               )}
             </div>
@@ -1083,7 +990,7 @@ function ClientSite({
                       ? "Aprovado"
                       : order.status === "rejected"
                       ? "Cancelado"
-                      : "Sob Análise"}
+                      : "Aguardando Pagamento"}
                   </span>
                 </div>
 
@@ -1330,10 +1237,7 @@ interface AdminPanelProps {
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   adminUser: FirebaseUser | null;
   setAdminUser: React.Dispatch<any>;
-  isDemoModeActive: boolean;
-  setIsDemoModeActive: React.Dispatch<React.SetStateAction<boolean>>;
   isFirebaseActive: boolean;
-  onEnableFallbackDemo: () => void;
   triggerToast: (msg: string) => void;
 }
 
@@ -1344,10 +1248,7 @@ function AdminPanel({
   setOrders,
   adminUser,
   setAdminUser,
-  isDemoModeActive,
-  setIsDemoModeActive,
   isFirebaseActive,
-  onEnableFallbackDemo,
   triggerToast,
 }: AdminPanelProps) {
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -1401,7 +1302,7 @@ function AdminPanel({
         totalNumbers: Number(campaign.totalNumbers),
       };
 
-      if (!isDemoModeActive && isFirebaseActive && dbInstance) {
+      if (isFirebaseActive && dbInstance) {
         await setDoc(doc(dbInstance, "settings", "campaign"), updatedCampaign);
       } else {
         localStorage.setItem("whisky_premium_settings", JSON.stringify(updatedCampaign));
@@ -1417,7 +1318,7 @@ function AdminPanel({
 
   const handleChangeOrderStatus = async (orderId: string, status: "approved" | "rejected" | "pending") => {
     try {
-      if (!isDemoModeActive && isFirebaseActive && dbInstance) {
+      if (isFirebaseActive && dbInstance) {
         await updateDoc(doc(dbInstance, "orders", orderId), {
           status,
           reviewedAt: serverTimestamp(),
@@ -1540,7 +1441,7 @@ function AdminPanel({
       <AdminStats
         orders={orders}
         campaign={campaign}
-        onPurgeLocalStorage={isDemoModeActive ? handlePurgeTestOrders : undefined}
+        onPurgeLocalStorage={handlePurgeTestOrders}
       />
 
       {/* Drawing Launch controller */}
@@ -1659,23 +1560,12 @@ function AdminPanel({
             <div className="space-y-2.5 p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800">
               <label className="text-xs font-serif font-black text-amber-500 uppercase tracking-widest block">Método de Baixa/Confirmação Pix</label>
               
-              <div className="grid gap-2 grid-cols-3">
-                <button
-                  type="button"
-                  onClick={() => setCampaign({ ...campaign, pixType: "manual" })}
-                  className={`py-2 px-1 rounded-xl text-[10px] font-black uppercase tracking-wider text-center border transition ${
-                    (!campaign.pixType || campaign.pixType === "manual")
-                      ? "bg-amber-500/10 border-amber-500 text-amber-500"
-                      : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white"
-                  }`}
-                >
-                  Manual
-                </button>
+              <div className="grid gap-2 grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setCampaign({ ...campaign, pixType: "simulator" })}
                   className={`py-2 px-1 rounded-xl text-[10px] font-black uppercase tracking-wider text-center border transition ${
-                    campaign.pixType === "simulator"
+                    (!campaign.pixType || campaign.pixType === "simulator" || campaign.pixType === "manual")
                       ? "bg-amber-500/10 border-amber-500 text-amber-500"
                       : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white"
                   }`}
