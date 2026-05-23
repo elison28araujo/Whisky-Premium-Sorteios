@@ -65,12 +65,13 @@ import whiskyChestAsset from "./assets/images/whisky_chest_1779503353570.png";
 
 // Raw Firebase Configuration
 const firebaseConfig = {
-  apiKey: "COLOQUE_SUA_API_KEY",
-  authDomain: "COLOQUE_SEU_AUTH_DOMAIN",
-  projectId: "COLOQUE_SEU_PROJECT_ID",
-  storageBucket: "COLOQUE_SEU_STORAGE_BUCKET",
-  messagingSenderId: "COLOQUE_SEU_SENDER_ID",
-  appId: "COLOQUE_SEU_APP_ID",
+  apiKey: "AIzaSyBHak7DH00OqAXD-IjOt3zRnOtuPGk2bxc",
+  authDomain: "whisky-premium-sorteios.firebaseapp.com",
+  projectId: "whisky-premium-sorteios",
+  storageBucket: "whisky-premium-sorteios.firebasestorage.app",
+  messagingSenderId: "53548867756",
+  appId: "1:53548867756:web:414374eab99b11d2113f09",
+  measurementId: "G-Y1R58WW4C2"
 };
 
 // Check if Firebase configuration has placeholder values
