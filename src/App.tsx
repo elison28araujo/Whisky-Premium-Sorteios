@@ -290,6 +290,7 @@ export default function App() {
     };
   }, []);
 
+  // 3. Derived State: Grid calculations (cached for performance)
   const approvedNumbers = useMemo(() => {
     const set = new Set<string>();
     orders
@@ -300,8 +301,16 @@ export default function App() {
 
   const pendingNumbers = useMemo(() => {
     const set = new Set<string>();
+    const now = Date.now();
     orders
-      .filter((order) => order.status === "pending")
+      .filter((order) => {
+        if (order.status !== "pending") return false;
+        // Optional: Filter out logic for EXPIRED pending orders (e.g. older than 15 mins)
+        // If the admin doesn't manually approve or the automatic check fails, we release them after 15m
+        const createdAt = order.createdAt?.seconds ? order.createdAt.seconds * 1000 : 0;
+        if (createdAt > 0 && now - createdAt > 15 * 60 * 1000) return false;
+        return true;
+      })
       .forEach((order) => (order.numbers || []).forEach((n) => set.add(n)));
     return set;
   }, [orders]);
@@ -566,20 +575,27 @@ function ClientSite({
 
   const handleAutoApproveOrder = async (orderId: string) => {
     try {
+      // Optimistically update local state for instant feedback
+      const updated = orders.map((o) => {
+        if (o.id === orderId) {
+          return { ...o, status: "approved" as const, reviewedAt: { seconds: Date.now() / 1000 } };
+        }
+        return o;
+      });
+      setOrders(updated);
+      localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
+
       if (isFirebaseActive && dbInstance) {
         updateDoc(doc(dbInstance, "orders", orderId), {
           status: "approved",
           reviewedAt: serverTimestamp(),
-        }).catch(e => console.warn(e));
-      } else {
-        const updated = orders.map((o) => {
-          if (o.id === orderId) {
-            return { ...o, status: "approved" as const, reviewedAt: { seconds: Date.now() / 1000 } };
+        }).catch(e => {
+          console.warn("Firestore update blocked by rules:", e);
+          // If updateDoc fails, explain why the server status didn't change (likely rules)
+          if (e.message?.includes("permission") || e.code === "permission-denied") {
+            alert("AVISO: O pagamento foi detectado, mas o Firebase bloqueou a atualização automática no banco de dados. Por favor, aprove este pedido manualmente no painel ADM usando o comprovante.");
           }
-          return o;
         });
-        setOrders(updated);
-        localStorage.setItem("whisky_premium_orders", JSON.stringify(updated));
       }
       triggerToast("Pagamento Pix confirmado automaticamente!");
     } catch (err: any) {
@@ -605,9 +621,10 @@ function ClientSite({
       }, 7000);
     } else if (activeCheckoutPayment.type === "mp_pix" && activeCheckoutPayment.paymentId) {
       setCheckingPaymentStatus(true);
-      intervalId = setInterval(async () => {
+      // Explicitly check status on mount once to avoid waiting 3s
+      const checkStatus = async () => {
         try {
-          const res = await fetch(`https://api.mercadopago.com/v1/payments/${activeCheckoutPayment.paymentId}`, {
+          const res = await fetch(`/api/mercadopago/payment/${activeCheckoutPayment.paymentId}`, {
             headers: {
               "Authorization": `Bearer ${campaign.mpAccessToken}`
             }
@@ -624,12 +641,21 @@ function ClientSite({
                 spread: 90,
                 origin: { y: 0.6 }
               });
+              return true;
             }
           }
         } catch (err) {
-          console.error("Erro na busca de status de pagamento do Mercado Pago:", err);
+          console.error("Status check fail:", err);
         }
-      }, 3000);
+        return false;
+      };
+
+      checkStatus();
+
+      intervalId = setInterval(async () => {
+        const approved = await checkStatus();
+        if (approved) clearInterval(intervalId);
+      }, 3500);
     }
 
     return () => {
@@ -699,7 +725,10 @@ function ClientSite({
           finalOrderId = docTarget.id;
           
           setDoc(docTarget, { ...newOrder, id: finalOrderId }).catch(firebaseErr => {
-             console.warn("Erro ao persistir pedido no Firestore (mantido localmente):", firebaseErr);
+             console.warn("Erro ao persistir pedido no Firestore:", firebaseErr);
+             if (firebaseErr.message?.includes("permission") || firebaseErr.code === "permission-denied") {
+               alert("ERRO: O Firebase bloqueou a criação do pedido (Permissão Negada). Verifique as Regras de Segurança (Firestore Rules) no seu console Firebase. Por enquanto, o pedido funcionará apenas localmente neste navegador.");
+             }
           });
           
           // Keep localstorage in sync with the real document ID
@@ -728,14 +757,15 @@ function ClientSite({
             description: `Reserva - ${campaign.siteName}`
           };
 
-          const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
+          const mpRes = await fetch("/api/mercadopago/payment", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${campaign.mpAccessToken}`,
-              "X-Idempotency-Key": `id-key-${Date.now()}`
+              "Content-Type": "application/json"
             },
-            body: JSON.stringify(bodyPayload)
+            body: JSON.stringify({
+              token: campaign.mpAccessToken,
+              body: bodyPayload
+            })
           });
 
           if (!mpRes.ok) {
@@ -1415,9 +1445,12 @@ function AdminPanel({
 
       if (isFirebaseActive && dbInstance) {
         try {
-          setDoc(doc(dbInstance, "settings", "campaign"), updatedCampaign).catch(fbErr => {
-             console.warn("Erro ao sincronizar com Firestore (Salvo apenas localmente no seu navegador):", fbErr);
-          });
+          setDoc(doc(dbInstance, "settings", "campaign"), updatedCampaign)
+            .then(() => triggerToast("Salvo online com sucesso!"))
+            .catch(fbErr => {
+               console.warn("Erro ao sincronizar com Firestore (Salvo apenas localmente no seu navegador):", fbErr);
+               alert("ATENÇÃO: O Firebase bloqueou o envio para o banco de dados (provavelmente devido às Regras de Segurança). Os dados foram salvos APENAS no seu navegador e não ficarão visíveis para os clientes.");
+            });
         } catch (fbErr: any) {
           console.warn("Erro logic com Firestore :", fbErr);
         }

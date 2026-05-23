@@ -178,7 +178,8 @@ export function NumberedGrid({
           } else if (isSelected) {
             btnClass = "border-amber-500 bg-gradient-to-br from-amber-500 to-amber-600 text-zinc-950 font-black shadow-lg shadow-amber-500/20";
           } else if (isPending) {
-            btnClass = "border-amber-950 bg-amber-950/40 text-amber-500 font-semibold cursor-not-allowed";
+            // Make it look more "Occupied" but distinct from fully approved
+            btnClass = "border-zinc-700 bg-zinc-800/10 text-zinc-500 opacity-60 cursor-not-allowed grayscale";
           }
 
           return (
@@ -225,8 +226,8 @@ export function NumberedGrid({
           <span>Livre</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-amber-900/30 border border-amber-950" />
-          <span>Pendente (Aguardando PIX)</span>
+          <div className="w-3 h-3 rounded bg-zinc-800/10 border border-zinc-700 grayscale" />
+          <span>Em Processamento (Reservado)</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded bg-zinc-800/40 border border-zinc-800 strike-through" />
