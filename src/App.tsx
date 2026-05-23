@@ -60,6 +60,8 @@ import { AdminStats } from "./components/AdminStats";
 
 // 1. Image Asset Constants (Loaded from AI generated assets)
 // @ts-ignore
+import bgBrasilParaAsset from "./assets/images/brasil_para_world_cup_bg_1779514175253.png";
+// @ts-ignore
 import whiskyBannerAsset from "./assets/images/whisky_banner_1779503336702.png";
 // @ts-ignore
 import whiskyChestAsset from "./assets/images/whisky_chest_1779503353570.png";
@@ -381,14 +383,17 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen font-sans bg-zinc-950 text-amber-50 pb-20 selection:bg-amber-500/20 selection:text-amber-200">
+    <div 
+      className="min-h-screen font-sans bg-zinc-950 text-amber-50 pb-20 selection:bg-amber-500/20 selection:text-amber-200 bg-cover bg-center bg-fixed"
+      style={{ backgroundImage: `url(${bgBrasilParaAsset})` }}
+    >
       
       {/* Main Header */}
-      <header className="sticky top-0 z-40 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-900">
+      <header className="sticky top-0 z-40 bg-black/40 backdrop-blur-md border-b border-white/10">
         <div className="mx-auto max-w-7xl flex items-center justify-between p-4 md:p-5">
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-700 items-center justify-center text-zinc-950 font-black shadow-lg">
-              W
+              BR
             </div>
             <div>
               <p className="text-[10px] uppercase font-mono font-bold tracking-[0.3em] text-amber-500">VIP Lounges</p>
@@ -782,12 +787,12 @@ function ClientSite({
       <div className="space-y-6">
         
         {/* Hero visual header containing generated images */}
-        <div className="relative overflow-hidden rounded-3xl border border-amber-500/20 bg-zinc-950 shadow-2xl">
+        <div className="relative overflow-hidden rounded-3xl border border-amber-500/20 bg-black/10 backdrop-blur-sm shadow-2xl">
           
           {/* Main Visual Banner */}
           <div className="relative h-60 md:h-[320px] w-full overflow-hidden flex items-center justify-center">
             <img
-              src={whiskyBannerAsset}
+              src={campaign.bannerImageUrl || whiskyBannerAsset}
               alt="Macallan Premium Scotch Whiskey Luxury Shot"
               className="w-full h-full object-cover select-none"
               referrerPolicy="no-referrer"
@@ -805,7 +810,7 @@ function ClientSite({
           </div>
 
           {/* Sorteio Specifications dashboard */}
-          <div className="grid gap-4 p-5 md:p-6 sm:grid-cols-3 bg-zinc-950/70 border-t border-zinc-900">
+          <div className="grid gap-4 p-5 md:p-6 sm:grid-cols-3 bg-black/10 backdrop-blur-sm border-t border-white/10">
             <div className="p-3 bg-zinc-900/40 border border-zinc-900 rounded-xl space-y-1">
               <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Valor do Bilhete</span>
               <p className="text-xl font-bold text-amber-500 font-mono">{money(ticketPrice)}</p>
@@ -840,7 +845,7 @@ function ClientSite({
         </div>
 
         {/* Cota Selector Container */}
-        <div className="rounded-3xl border border-zinc-900 bg-zinc-950/40 backdrop-blur-md p-5 md:p-6 shadow-xl">
+        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 shadow-xl">
           <NumberedGrid
             totalNumbers={campaign.totalNumbers}
             approvedNumbers={approvedNumbers}
@@ -852,7 +857,7 @@ function ClientSite({
         </div>
 
         {/* Prize description + second generated Image */}
-        <div className="rounded-3xl border border-zinc-900 bg-zinc-950/30 p-5 md:p-6 space-y-5">
+        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 space-y-5">
           <h4 className="font-serif text-lg font-bold text-amber-100 flex items-center gap-1.5 uppercase tracking-wide">
             <Info size={18} className="text-amber-500" />
             Especificações do Prêmio Premium
@@ -861,7 +866,7 @@ function ClientSite({
           <div className="grid gap-6 md:grid-cols-[0.4fr_0.6fr] items-center">
             <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 relative aspect-square w-full max-w-44 mx-auto md:max-w-none">
               <img
-                src={whiskyChestAsset}
+                src={campaign.secondaryImageUrl || whiskyChestAsset}
                 alt="Macallan Premium collectors chest packaging"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
@@ -887,7 +892,7 @@ function ClientSite({
       <div className="space-y-6">
         
         {/* PIX Checkout processing panel */}
-        <div className="rounded-3xl border border-zinc-900 bg-zinc-950 p-5 md:p-6 shadow-xl space-y-5 relative">
+        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 shadow-xl space-y-5 relative">
           <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-600 to-amber-400 rounded-t-3xl" />
           
           <div>
@@ -1031,7 +1036,7 @@ function ClientSite({
         </div>
 
         {/* Query orders panel */}
-        <div className="rounded-3xl border border-zinc-900 bg-zinc-950/40 backdrop-blur-md p-5 md:p-6 shadow-xl space-y-4">
+        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 shadow-xl space-y-4">
           <div>
             <h3 className="font-serif text-lg font-bold text-zinc-100 flex items-center gap-1">
               <Search className="text-amber-500" size={18} />
@@ -1104,7 +1109,7 @@ function ClientSite({
         </div>
 
         {/* WhatsApp Group & Support Community Panel */}
-        <div className="rounded-3xl border border-zinc-900 bg-zinc-950 p-5 md:p-6 shadow-xl space-y-4 text-left">
+        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 shadow-xl space-y-4 text-left">
           <div className="space-y-1">
             <h4 className="font-serif text-base font-bold text-zinc-100 flex items-center gap-1.5 uppercase tracking-wide">
               <MessageCircle className="text-emerald-500" size={18} />
@@ -1601,6 +1606,28 @@ function AdminPanel({
                 placeholder="Produto sorteado"
                 value={campaign.prizeName}
                 onChange={(e) => setCampaign({ ...campaign, prizeName: e.target.value })}
+                className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-400">URL da Imagem do Banner (Principal)</label>
+              <input
+                type="text"
+                placeholder="https://exemplo.com/banner.png"
+                value={campaign.bannerImageUrl || ""}
+                onChange={(e) => setCampaign({ ...campaign, bannerImageUrl: e.target.value })}
+                className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-400">URL da Imagem Secundária (Caixa/Detalhe)</label>
+              <input
+                type="text"
+                placeholder="https://exemplo.com/caixa.png"
+                value={campaign.secondaryImageUrl || ""}
+                onChange={(e) => setCampaign({ ...campaign, secondaryImageUrl: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
               />
             </div>

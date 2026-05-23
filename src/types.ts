@@ -19,6 +19,8 @@ export interface Campaign {
   whatsappContact?: string;
   pixType?: "manual" | "mp_pix" | "simulator";
   mpAccessToken?: string;
+  bannerImageUrl?: string;
+  secondaryImageUrl?: string;
   updatedAt?: number;
 }
 
