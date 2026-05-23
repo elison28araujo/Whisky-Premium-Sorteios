@@ -151,6 +151,48 @@ function money(value: number): string {
   });
 }
 
+/**
+ * Compresses an image data URL using Canvas
+ * Ensures images stay within Firestore safest document limits (~1MB total per doc)
+ */
+async function compressImage(dataUrl: string, maxWidth = 1200, maxHeight = 1200, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = dataUrl;
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let width = img.width;
+      let height = img.height;
+
+      // Mantain aspect ratio
+      if (width > height) {
+        if (width > maxWidth) {
+          height *= maxWidth / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width *= maxHeight / height;
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(dataUrl);
+
+      // White background for JPEGs
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+  });
+}
+
 export default function App() {
   const [campaign, setCampaign] = useState<Campaign>(() => {
     const local = localStorage.getItem("whisky_premium_settings");
@@ -1746,7 +1788,10 @@ function AdminPanel({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-400 font-sans">Imagem do Banner (Principal)</label>
+              <label className="text-xs font-semibold text-zinc-400 font-sans flex justify-between">
+                <span>Imagem do Banner (Principal)</span>
+                <span className="text-[10px] text-zinc-500">Ideal: 1400x800px (Máx 5MB)</span>
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1764,13 +1809,17 @@ function AdminPanel({
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        if (file.size > 800000) { // ~800KB limit for Firestore safest storage
-                          alert("A imagem é muito grande. Tente uma imagem menor que 800KB para garantir o salvamento.");
+                        // Increase limit to 5MB, compression will handle the rest
+                        if (file.size > 5 * 1024 * 1024) { 
+                          alert("A imagem é muito grande. Escolha uma imagem de até 5MB.");
                           return;
                         }
                         const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setCampaign({ ...campaign, bannerImageUrl: reader.result as string });
+                        reader.onloadend = async () => {
+                          const original = reader.result as string;
+                          // Standard banner resolution
+                          const compressed = await compressImage(original, 1400, 800, 0.7);
+                          setCampaign({ ...campaign, bannerImageUrl: compressed });
                         };
                         reader.readAsDataURL(file);
                       }
@@ -1781,7 +1830,10 @@ function AdminPanel({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-400 font-sans">Imagem Secundária (Caixa/Detalhe)</label>
+              <label className="text-xs font-semibold text-zinc-400 font-sans flex justify-between">
+                <span>Imagem Secundária (Caixa/Detalhe)</span>
+                <span className="text-[10px] text-zinc-500">Ideal: 800x800px (Quadrada)</span>
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1799,13 +1851,16 @@ function AdminPanel({
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        if (file.size > 800000) {
-                          alert("A imagem é muito grande. Tente uma imagem menor que 800KB.");
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert("A imagem é muito grande. Escolha uma imagem de até 5MB.");
                           return;
                         }
                         const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setCampaign({ ...campaign, secondaryImageUrl: reader.result as string });
+                        reader.onloadend = async () => {
+                          const original = reader.result as string;
+                          // Secondary images can be smaller/square
+                          const compressed = await compressImage(original, 800, 800, 0.7);
+                          setCampaign({ ...campaign, secondaryImageUrl: compressed });
                         };
                         reader.readAsDataURL(file);
                       }
