@@ -49,6 +49,7 @@ import {
   RotateCcw,
   Sparkles,
   Inbox,
+  MessageCircle,
 } from "lucide-react";
 
 import { Campaign, Order } from "./types";
@@ -112,6 +113,8 @@ const DEFAULT_CAMPAIGN: Campaign = {
   pixHolder: "ELISON DA SILVA ARAUJO - NUPAGAMENTOS",
   rules:
     "Participação permitida apenas para maiores de 18 anos. Os números são confirmados somente de forma eletrônica após aprovação manual ou automática do Pix pelo administrador do sistema. A entrega do produto é realizada via transportadora segurada ou em mãos conforme regulamento.",
+  whatsappGroupUrl: "https://chat.whatsapp.com/GgGvOnfIasvEnT90pLaSeX",
+  whatsappContact: "91985066711",
 };
 
 // Mask Formatters
@@ -469,6 +472,7 @@ function ClientSite({
   const [submitting, setSubmitting] = useState(false);
   const [searchCpf, setSearchCpf] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState<string>("");
+  const [lastSubmittedOrder, setLastSubmittedOrder] = useState<Order | null>(null);
 
   const ticketPrice = Number(campaign.ticketPrice || 0);
   const totalCost = selected.length * ticketPrice;
@@ -498,9 +502,24 @@ function ClientSite({
     triggerToast("Chave PIX copiada para a área de transferência!");
   };
 
+  const getWhatsAppReceiptLink = (order: Order) => {
+    const adminPhone = campaign.whatsappContact || campaign.pixKey || "5591985066711";
+    const cleanPhone = adminPhone.replace(/\D/g, "");
+    const phone = cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone;
+    const text = `*ENVIO DE COMPROVANTE - ${campaign.siteName}*\n\n` +
+                 `Olá! Acabei de enviar o meu pedido de cotas no site.\n\n` +
+                 `*ID do Pedido:* \`${order.id}\`\n` +
+                 `*Nome:* ${order.name}\n` +
+                 `*Cotas:* ${order.numbers.join(", ")}\n` +
+                 `*Valor:* ${money(order.amount)}\n\n` +
+                 `Estou enviando o comprovante em anexo para aprovação. Obrigado!`;
+    return `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`;
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitSuccess("");
+    setLastSubmittedOrder(null);
 
     if (!campaign.active) {
       alert("Atenção: Esta campanha está pausada ou finalizada no momento.");
@@ -562,6 +581,7 @@ function ClientSite({
       setSubmitSuccess(
         "Seu pedido foi enviado para análise! O administrador irá conferir o comprovante e você poderá acompanhar o status de aprovação digitando seu CPF na busca."
       );
+      setLastSubmittedOrder(newOrder);
       setSelected([]);
       setForm({ name: "", cpf: "", whatsapp: "", birthDate: "" });
       setReceipt(null);
@@ -801,9 +821,35 @@ function ClientSite({
           </form>
 
           {submitSuccess && (
-            <div className="rounded-2xl border border-green-500/10 bg-green-500/5 p-4 text-xs text-green-300 leading-relaxed text-left flex items-start gap-2">
-              <CheckCircle2 size={16} className="text-green-500 shrink-0 mt-0.5 animate-bounce" />
-              <span>{submitSuccess}</span>
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/10 p-5 space-y-4 text-left animate-fade-in">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 size={20} className="text-emerald-400 shrink-0 mt-0.5 animate-bounce" />
+                <div className="space-y-1">
+                  <h4 className="font-serif font-black text-xs text-emerald-300 uppercase tracking-widest">Inscrição Enviada!</h4>
+                  <p className="text-xs text-zinc-300 leading-relaxed">
+                    {submitSuccess}
+                  </p>
+                </div>
+              </div>
+
+              {lastSubmittedOrder && (
+                <div className="pt-3 border-t border-emerald-950/60 space-y-3">
+                  <div className="p-3 rounded-xl bg-zinc-90 w-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 space-y-1 font-mono">
+                    <p><span className="text-zinc-500 font-sans font-semibold">Nome:</span> {lastSubmittedOrder.name}</p>
+                    <p><span className="text-zinc-500 font-sans font-semibold">Cotas:</span> {lastSubmittedOrder.numbers.join(", ")}</p>
+                    <p><span className="text-zinc-500 font-sans font-semibold">Total:</span> {money(lastSubmittedOrder.amount)}</p>
+                  </div>
+
+                  <a
+                    href={getWhatsAppReceiptLink(lastSubmittedOrder)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-500 text-white text-[11px] font-black uppercase tracking-wider text-center transition active:scale-95 flex items-center justify-center gap-2 select-none"
+                  >
+                    <MessageCircle size={14} /> Enviar Comprovante via WhatsApp
+                  </a>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -878,6 +924,40 @@ function ClientSite({
                 Nenhuma cota encontrada para este CPF.
               </div>
             )}
+          </div>
+        </div>
+
+        {/* WhatsApp Group & Support Community Panel */}
+        <div className="rounded-3xl border border-zinc-900 bg-zinc-950 p-5 md:p-6 shadow-xl space-y-4 text-left">
+          <div className="space-y-1">
+            <h4 className="font-serif text-base font-bold text-zinc-100 flex items-center gap-1.5 uppercase tracking-wide">
+              <MessageCircle className="text-emerald-500" size={18} />
+              Suporte & Grupo Vip
+            </h4>
+            <p className="text-xs text-zinc-500">Entre no canal oficial ou contate o administrador se preferir.</p>
+          </div>
+
+          <div className="grid gap-2.5">
+            {campaign.whatsappGroupUrl && (
+              <a
+                href={campaign.whatsappGroupUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 px-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-xs font-bold transition flex items-center justify-center gap-2 select-none"
+              >
+                <MessageCircle size={14} className="animate-pulse" />
+                Entrar no Grupo de Sorteios
+              </a>
+            )}
+            
+            <a
+              href={`https://api.whatsapp.com/send?phone=${(campaign.whatsappContact || "5591985066711").replace(/\D/g, "")}&text=${encodeURIComponent(`Olá! Estou acessando o site ${campaign.siteName} e gostaria de tirar uma dúvida ou enviar meu comprovante Pix.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 px-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 text-zinc-300 text-xs font-bold transition flex items-center justify-center gap-2 select-none"
+            >
+              Falar com o Suporte / Enviar Comprovante
+            </a>
           </div>
         </div>
 
@@ -1205,6 +1285,28 @@ function AdminPanel({
                 value={campaign.pixHolder}
                 onChange={(e) => setCampaign({ ...campaign, pixHolder: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-400">Link do Grupo do WhatsApp (Opcional)</label>
+              <input
+                type="url"
+                placeholder="Ex e original: https://chat.whatsapp.com/GgGvOnfIasvEnT90pLaSeX"
+                value={campaign.whatsappGroupUrl || ""}
+                onChange={(e) => setCampaign({ ...campaign, whatsappGroupUrl: e.target.value })}
+                className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-400">WhatsApp Oficial de Suporte / Envio de Comprovantes (Apenas números com DDD)</label>
+              <input
+                type="text"
+                placeholder="Ex: 91985066711"
+                value={campaign.whatsappContact || ""}
+                onChange={(e) => setCampaign({ ...campaign, whatsappContact: e.target.value })}
+                className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition font-mono"
               />
             </div>
 

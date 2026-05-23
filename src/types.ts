@@ -15,6 +15,8 @@ export interface Campaign {
   pixKey: string;
   pixHolder: string;
   rules: string;
+  whatsappGroupUrl?: string;
+  whatsappContact?: string;
 }
 
 export interface Order {
