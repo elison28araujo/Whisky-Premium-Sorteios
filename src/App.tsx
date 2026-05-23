@@ -305,10 +305,13 @@ export default function App() {
     orders
       .filter((order) => {
         if (order.status !== "pending") return false;
-        // Optional: Filter out logic for EXPIRED pending orders (e.g. older than 15 mins)
-        // If the admin doesn't manually approve or the automatic check fails, we release them after 15m
-        const createdAt = order.createdAt?.seconds ? order.createdAt.seconds * 1000 : 0;
-        if (createdAt > 0 && now - createdAt > 15 * 60 * 1000) return false;
+        
+        // If it's a serverTimestamp that hasn't synced yet, it's definitely pending/reserved
+        if (!order.createdAt || !order.createdAt.seconds) return true;
+
+        const createdAt = order.createdAt.seconds * 1000;
+        // Release after 15 minutes if not approved
+        if (now - createdAt > 15 * 60 * 1000) return false;
         return true;
       })
       .forEach((order) => (order.numbers || []).forEach((n) => set.add(n)));
@@ -573,6 +576,13 @@ function ClientSite({
     return `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`;
   };
 
+  const handleManualRefresh = () => {
+    if (isFirebaseActive && dbInstance) {
+      triggerToast("Sincronizando dados com Firebase...");
+      // onSnapshot already handles this, but a manual refresh might clear some race conditions
+    }
+  };
+
   const handleAutoApproveOrder = async (orderId: string) => {
     try {
       // Optimistically update local state for instant feedback using functional update
@@ -588,18 +598,21 @@ function ClientSite({
       });
 
       if (isFirebaseActive && dbInstance) {
-        updateDoc(doc(dbInstance, "orders", orderId), {
-          status: "approved",
-          reviewedAt: serverTimestamp(),
-        }).catch(e => {
-          console.warn("Firestore update blocked by rules:", e);
-          // If updateDoc fails, explain why the server status didn't change (likely rules)
-          if (e.message?.includes("permission") || e.code === "permission-denied") {
-            alert("AVISO: O pagamento foi detectado, mas o Firebase bloqueou a atualização automática no banco de dados. Por favor, aprove este pedido manualmente no painel ADM usando o comprovante.");
+        try {
+          await updateDoc(doc(dbInstance, "orders", orderId), {
+            status: "approved",
+            reviewedAt: serverTimestamp(),
+          });
+          triggerToast("Pagamento Pix confirmado online!");
+        } catch (fbErr: any) {
+          console.warn("UpdateDoc failed:", fbErr);
+          if (fbErr.message?.includes("permission") || fbErr.code === "permission-denied") {
+            alert("AVISO: O pagamento foi detectado, mas o Firebase bloqueou a atualização no banco de dados.\n\nIsso significa que o seu sistema de confirmação automática NÃO vai funcionar para os seus clientes até que você ajuste as REGRAS DE SEGURANÇA no Console Firebase.\n\nPor favor, entre em contato ou veja a aba de ajuda no painel ADM.");
           }
-        });
+        }
+      } else {
+        triggerToast("Pagamento confirmado localmente!");
       }
-      triggerToast("Pagamento Pix confirmado automaticamente!");
     } catch (err: any) {
       console.error("Erro na confirmação automática:", err);
     }
@@ -728,21 +741,20 @@ function ClientSite({
           const docTarget = doc(collection(dbInstance, "orders"));
           finalOrderId = docTarget.id;
           
-          setDoc(docTarget, { ...newOrder, id: finalOrderId }).catch(firebaseErr => {
-             console.warn("Erro ao persistir pedido no Firestore:", firebaseErr);
-             if (firebaseErr.message?.includes("permission") || firebaseErr.code === "permission-denied") {
-               alert("ERRO: O Firebase bloqueou a criação do pedido (Permissão Negada). Verifique as Regras de Segurança (Firestore Rules) no seu console Firebase. Por enquanto, o pedido funcionará apenas localmente neste navegador.");
-             }
-          });
+          await setDoc(docTarget, { ...newOrder, id: finalOrderId });
           
-          // Keep localstorage in sync with the real document ID
+          // Keep localstorage and state in sync with the real document ID
           setOrders((prev) => {
             const updatedWithServerId = prev.map(o => o.id === newOrderId ? { ...newOrder, id: finalOrderId } : o);
             localStorage.setItem("whisky_premium_orders", JSON.stringify(updatedWithServerId));
             return updatedWithServerId;
           });
         } catch (firebaseErr: any) {
-          console.warn("Sync error setup:", firebaseErr);
+          console.warn("Firebase save error:", firebaseErr);
+          if (firebaseErr.message?.includes("permission") || firebaseErr.code === "permission-denied") {
+            alert("ERRO CRÍTICO: O Firebase bloqueou a criação do pedido!\n\nCOMO RESOLVER:\n1. Vá ao Console Firebase > Firestore > Rules\n2. Cole as seguintes regras:\n\nrules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /settings/campaign { allow read: if true; allow write: if request.auth != null; }\n    match /orders/{id} { allow create, read, update: if true; allow delete: if request.auth != null; }\n  }\n}");
+            return;
+          }
         }
       }
 
@@ -774,12 +786,19 @@ function ClientSite({
             })
           });
 
-          if (!mpRes.ok) {
-            const errData = await mpRes.json();
-            throw new Error(errData.message || "Erro retornado pelo Mercado Pago. Verifique as credenciais.");
+          let mpData;
+          try {
+            const text = await mpRes.text();
+            if (!text) throw new Error("Resposta vazia do servidor.");
+            mpData = JSON.parse(text);
+          } catch (e) {
+            console.error("JSON parse error:", e, "Payload was:", text);
+            throw new Error(`Erro de resposta do servidor: O sistema retornou um conteúdo inesperado. Verifique se as credenciais do Mercado Pago estão corretas ou se o servidor está ativo.`);
           }
 
-          const mpData = await mpRes.json();
+          if (!mpRes.ok) {
+            throw new Error(mpData?.message || mpData?.error || "Erro retornado pelo Mercado Pago.");
+          }
           const paymentId = String(mpData.id);
           const qrCodeString = mpData.point_of_interaction?.transaction_data?.qr_code || "";
           const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64 || "";
