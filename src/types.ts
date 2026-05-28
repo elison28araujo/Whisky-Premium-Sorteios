@@ -27,9 +27,7 @@ export interface Campaign {
 export interface Order {
   id: string;
   name: string;
-  cpf: string;
   whatsapp: string;
-  birthDate: string;
   numbers: string[];
   amount: number;
   status: "pending" | "approved" | "rejected";

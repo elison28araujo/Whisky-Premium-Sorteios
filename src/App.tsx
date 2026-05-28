@@ -41,6 +41,7 @@ import {
   Trophy,
   Activity,
   User,
+  Users,
   AlertCircle,
   FileCheck,
   Smartphone,
@@ -106,14 +107,14 @@ if (!isDemoConfig) {
 }
 
 const DEFAULT_CAMPAIGN: Campaign = {
-  siteName: "Whisky Premium Sorteios",
+  siteName: "ESA PREMIAÇÃO PARAUAPEBAS",
   active: true,
-  prizeName: "The Macallan Double Cask 15 Anos - Coleção Privada",
+  prizeName: "SUPER KIT CHURRASCO",
   prizeDescription:
-    "Ganhador receberá um exemplar lacrado de The Macallan Double Cask 15 Anos, acompanhado de caixa original luxuosa em madeira e dois copos de cristal Lapidado. Um single malt majestoso, maturado nos melhores barris de xerez espanhóis e carvalho americano.",
-  ticketPrice: 15,
-  totalNumbers: 100,
-  drawMode: "Ao concluir todas as vendas ou na data definida pelo administrador.",
+    "🚨🥩 ATENÇÃO, GALERA!\n🍻🔥 Tá lançado o SUPER SORTEIO DO KIT CHURRASCO da ESA PREMIAÇÃO PARAUAPEBAS! 🎉\n🔥 O prêmio é:\n✅ 1 Fraldinha\n✅ 1 pacote de Brahma (12 latas) 🍺\n✅ 1 Sal de Parrilla 🧂\n✅ 1 saco de carvão 🔥\n✅ 1 kit garfo e faca 🍖\n💰 Cota apenas: R$ 4,00\n🎯 Serão somente 65 bolinhas!\n⚠️ Corre e garante seu número antes que acabe! Quem não participa, não ganha 😅🍀\n\n Entrega em toda Parauapebas - Pá",
+  ticketPrice: 4,
+  totalNumbers: 65,
+  drawMode: "Ao concluir todas as vendas.",
   drawDate: "",
   pixKey: "91985066711",
   pixHolder: "ELISON DA SILVA ARAUJO - NUPAGAMENTOS",
@@ -125,16 +126,6 @@ const DEFAULT_CAMPAIGN: Campaign = {
   mpAccessToken: "",
   updatedAt: 0,
 };
-
-// Mask Formatters
-function formatCPF(val: string): string {
-  const clean = val.replace(/\D/g, "");
-  return clean
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
-    .slice(0, 14);
-}
 
 function formatWhatsApp(val: string): string {
   const clean = val.replace(/\D/g, "");
@@ -585,9 +576,9 @@ function ClientSite({
   triggerToast,
 }: ClientSiteProps) {
   const [selected, setSelected] = useState<string[]>([]);
-  const [form, setForm] = useState({ name: "", cpf: "", whatsapp: "", birthDate: "" });
+  const [form, setForm] = useState({ name: "", whatsapp: "" });
   const [submitting, setSubmitting] = useState(false);
-  const [searchCpf, setSearchCpf] = useState("");
+  const [searchPhone, setSearchPhone] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState<string>("");
   const [lastSubmittedOrder, setLastSubmittedOrder] = useState<Order | null>(null);
 
@@ -609,10 +600,10 @@ function ClientSite({
     : 0;
 
   const myOrders = useMemo(() => {
-    const clean = searchCpf.replace(/\D/g, "");
+    const clean = searchPhone.replace(/\D/g, "");
     if (!clean) return [];
-    return orders.filter((o) => String(o.cpf || "").replace(/\D/g, "") === clean);
-  }, [orders, searchCpf]);
+    return orders.filter((o) => String(o.whatsapp || "").replace(/\D/g, "") === clean);
+  }, [orders, searchPhone]);
 
   const toggleNumber = (num: string) => {
     if (approvedNumbers.has(num)) return;
@@ -750,31 +741,8 @@ function ClientSite({
       alert("Nenhum número selecionado! Selecione ao menos 1 cota.");
       return;
     }
-    if (!form.name || !form.cpf || !form.whatsapp || !form.birthDate) {
+    if (!form.name || !form.whatsapp) {
       alert("Por favor preencha todos os dados no formulário.");
-      return;
-    }
-
-    // Age calculation
-    let birthday: Date;
-    if (form.birthDate.includes("/")) {
-      const [day, month, year] = form.birthDate.split("/").map(Number);
-      birthday = new Date(year, month - 1, day);
-    } else {
-      birthday = new Date(form.birthDate);
-    }
-    
-    if (isNaN(birthday.getTime())) {
-      alert("Por favor insira uma data de nascimento válida.");
-      return;
-    }
-
-    const ageDiff = Date.now() - birthday.getTime();
-    const ageDate = new Date(ageDiff);
-    const age = Math.abs(ageDate.getUTCFullYear() - 1970);
-
-    if (age < 18) {
-      alert("Entrada proibida. Participação permitida apenas para maiores de 18 anos.");
       return;
     }
 
@@ -787,9 +755,7 @@ function ClientSite({
       const newOrder: Order = {
         id: newOrderId,
         name: form.name,
-        cpf: form.cpf,
         whatsapp: form.whatsapp,
-        birthDate: form.birthDate,
         numbers: selected,
         amount: totalCost,
         status: "pending",
@@ -834,13 +800,9 @@ function ClientSite({
             transaction_amount: Number(totalCost),
             payment_method_id: "pix",
             payer: {
-              email: `${form.cpf.replace(/\D/g, "")}@whiskypremium.com.br`,
+              email: `${form.whatsapp.replace(/\D/g, "")}@whiskypremium.com.br`,
               first_name: form.name.split(" ")[0] || "Comprador",
-              last_name: form.name.split(" ").slice(1).join(" ") || "Privado",
-              identification: {
-                type: "CPF",
-                number: form.cpf.replace(/\D/g, "")
-              }
+              last_name: form.name.split(" ").slice(1).join(" ") || "Privado"
             },
             description: `Reserva - ${campaign.siteName}`
           };
@@ -898,7 +860,7 @@ function ClientSite({
       setSubmitSuccess("Seu código de pagamento PIX automático foi gerado com sucesso!");
       setLastSubmittedOrder({ ...newOrder, id: finalOrderId });
       setSelected([]);
-      setForm({ name: "", cpf: "", whatsapp: "", birthDate: "" });
+      setForm({ name: "", whatsapp: "" });
       triggerToast("Pedido gerado com sucesso!");
     } catch (err: any) {
       alert("Ocorreu um erro ao enviar o pedido: " + err.message);
@@ -1005,7 +967,7 @@ function ClientSite({
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/60 to-transparent" />
             </div>
             <div className="space-y-4">
-              <p className="text-base text-zinc-300 leading-relaxed font-sans max-w-2xl mx-auto">
+              <p className="text-base text-zinc-300 leading-relaxed font-sans max-w-2xl mx-auto whitespace-pre-wrap">
                 {campaign.prizeDescription}
               </p>
               <div className="inline-flex items-center gap-3 rounded-2xl bg-zinc-950 border border-zinc-800 px-5 py-3 shadow-inner">
@@ -1065,64 +1027,28 @@ function ClientSite({
           </div>
 
           {/* Participant Form */}
-          <form onSubmit={handleSubmitOrder} className="space-y-3.5">
+          <form onSubmit={handleSubmitOrder} id="checkout-form" className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-400">Nome de Titularidade (Físico)</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">Nome Completo</label>
               <input
                 type="text"
                 required
                 placeholder="Ex: João da Silva Santos"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full rounded-xl bg-zinc-900 border border-zinc-850 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/80 transition"
+                className="w-full rounded-2xl bg-zinc-900 border border-zinc-800 py-3.5 px-4 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/20 transition-all shadow-inner"
               />
             </div>
 
-            <div className="grid gap-3 grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-zinc-400">CPF do Comprador</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="000.000.000-00"
-                  value={form.cpf}
-                  onChange={(e) => setForm({ ...form, cpf: formatCPF(e.target.value) })}
-                  className="w-full rounded-xl bg-zinc-900 border border-zinc-855 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/80 transition font-mono"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-zinc-400">Whatsapp (Contato)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="(00) 00000-0000"
-                  value={form.whatsapp}
-                  onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })}
-                  className="w-full rounded-xl bg-zinc-900 border border-zinc-860 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/80 transition font-mono"
-                />
-              </div>
-            </div>
-
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-400">Data de Nascimento (DD/MM/AAAA)</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">WhatsApp (Número com DDD)</label>
               <input
-                type="text"
-                placeholder="DD/MM/AAAA"
+                type="tel"
                 required
-                value={form.birthDate}
-                onChange={(e) => {
-                  let val = e.target.value.replace(/\D/g, "");
-                  if (val.length > 8) val = val.slice(0, 8);
-                  
-                  let formatted = val;
-                  if (val.length > 2) formatted = val.slice(0, 2) + "/" + val.slice(2);
-                  if (val.length > 4) formatted = formatted.slice(0, 5) + "/" + formatted.slice(5);
-                  
-                  setForm({ ...form, birthDate: formatted });
-                }}
-                className="w-full rounded-xl bg-zinc-900 border border-zinc-865 py-3 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/80 transition font-mono"
-                maxLength={10}
+                placeholder="(00) 00000-0000"
+                value={form.whatsapp}
+                onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })}
+                className="w-full rounded-2xl bg-zinc-900 border border-zinc-800 py-3.5 px-4 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/20 transition-all shadow-inner font-mono"
               />
             </div>
 
@@ -1151,6 +1077,26 @@ function ClientSite({
               )}
             </button>
           </form>
+
+          {/* Mobile Sticky Summary Footer */}
+          <div 
+            className={`fixed bottom-0 left-0 right-0 z-[60] p-4 md:hidden transform transition-transform duration-300 ${
+              selected.length > 0 ? "translate-y-0" : "translate-y-full"
+            }`}
+          >
+            <div className="bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Total ({selected.length})</span>
+                <span className="text-lg font-black text-amber-500 font-mono leading-none">{money(totalCost)}</span>
+              </div>
+              <button
+                onClick={() => document.getElementById('checkout-form')?.scrollIntoView({ behavior: 'smooth' })}
+                className="bg-amber-500 text-zinc-950 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-transform shadow-lg"
+              >
+                Concluir Reserva
+              </button>
+            </div>
+          </div>
 
           {submitSuccess && (
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/10 p-5 space-y-4 text-left animate-fade-in">
@@ -1190,15 +1136,15 @@ function ClientSite({
               <Search className="text-amber-500" size={18} />
               Minhas Cotas Reservadas
             </h3>
-            <p className="text-xs text-zinc-500 mt-0.5">Consulte o status do seu bilhete informando o CPF.</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Consulte o status do seu bilhete informando o WhatsApp.</p>
           </div>
 
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Digite seu CPF cadastrado"
-              value={searchCpf}
-              onChange={(e) => setSearchCpf(formatCPF(e.target.value))}
+              placeholder="Seu WhatsApp (Somente números)"
+              value={searchPhone}
+              onChange={(e) => setSearchPhone(e.target.value.replace(/\D/g, ""))}
               className="grow rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-4 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/80 transition font-mono"
             />
           </div>
@@ -1207,14 +1153,17 @@ function ClientSite({
             {myOrders.map((order) => (
               <div
                 key={order.id}
-                className="p-3.5 rounded-xl border border-zinc-900 bg-zinc-900/10 text-xs flex flex-col items-start gap-2 animate-fade-in"
+                className="p-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 text-xs flex flex-col gap-3 animate-fade-in hover:bg-zinc-900/60 transition-colors shadow-sm"
               >
                 <div className="flex items-center justify-between w-full">
-                  <span className="font-bold text-[10px] uppercase font-mono text-zinc-500">
-                    ID: {order.id.slice(0, 10)}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="font-bold text-[9px] uppercase font-mono text-zinc-500 tracking-wider">
+                      CÓDIGO: {order.id.slice(0, 10)}
+                    </span>
+                    <span className="text-[13px] font-bold text-zinc-100 mt-0.5">{order.name}</span>
+                  </div>
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
                       order.status === "approved"
                         ? "bg-green-500/10 text-green-400 border border-green-500/10"
                         : order.status === "rejected"
@@ -1226,30 +1175,79 @@ function ClientSite({
                       ? "Aprovado"
                       : order.status === "rejected"
                       ? "Cancelado"
-                      : "Aguardando Pagamento"}
+                      : "Aguardando"}
                   </span>
                 </div>
 
-                <div className="space-y-1 text-zinc-300 w-full">
-                  <p>
-                    Comprador: <strong className="text-zinc-100">{order.name}</strong>
-                  </p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {(order.numbers || []).map(num => (
-                      <span key={num} className="px-2 py-0.5 rounded-md bg-zinc-800 text-amber-400 font-black text-[10px] border border-amber-500/20">{num}</span>
-                    ))}
+                <div className="space-y-2 border-t border-zinc-800/60 pt-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-tighter mb-1.5 block">Seus Números:</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(order.numbers || []).map(num => (
+                        <span key={num} className="h-7 min-w-[28px] flex items-center justify-center rounded-lg bg-zinc-800 text-amber-400 font-bold text-[10px] border border-amber-500/10 shadow-sm">{num}</span>
+                      ))}
+                    </div>
                   </div>
-                  <p>
-                    Valor total pago:{" "}
-                    <strong className="text-zinc-100 font-mono">{money(order.amount)}</strong>
-                  </p>
+                  
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-zinc-500 font-medium">Invéstimento total:</span>
+                    <strong className="text-zinc-100 font-bold text-[14px]">{money(order.amount)}</strong>
+                  </div>
                 </div>
               </div>
             ))}
 
-            {searchCpf && myOrders.length === 0 && (
+            {searchPhone && myOrders.length === 0 && (
               <div className="p-4 text-center text-zinc-600 text-xs border border-dashed border-zinc-900 rounded-xl">
-                Nenhuma cota encontrada para este CPF.
+                Nenhuma cota encontrada para este WhatsApp.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Already Paid Participants List Section */}
+        <div className="rounded-3xl border border-white/10 bg-black/10 backdrop-blur-sm p-5 md:p-6 shadow-xl space-y-4 text-left">
+          <div className="space-y-1">
+            <h4 className="font-serif text-base font-bold text-zinc-100 flex items-center gap-1.5 uppercase tracking-wide">
+              <Users className="text-amber-500" size={18} />
+              Últimos Participantes (Pagos)
+            </h4>
+            <p className="text-[10px] text-zinc-500 font-medium">Confira quem já garantiu a sorte nesta edição.</p>
+          </div>
+
+          <div className="grid gap-2 max-h-60 overflow-y-auto pr-1">
+            {orders.filter(o => o.status === "approved").length > 0 ? (
+              orders.filter(o => o.status === "approved")
+                .sort((a, b) => {
+                  const timeA = a.reviewedAt?.seconds || a.createdAt?.seconds || 0;
+                  const timeB = b.reviewedAt?.seconds || b.createdAt?.seconds || 0;
+                  return timeB - timeA;
+                })
+                .slice(0, 30) // Show top 30 most recent
+                .map((order) => (
+                  <div
+                    key={order.id}
+                    className="p-3 rounded-2xl border border-zinc-800 bg-zinc-900/40 text-xs flex items-center justify-between gap-3 animate-fade-in hover:bg-zinc-900/60 transition-colors shadow-sm"
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[12px] font-bold text-zinc-100 truncate">{order.name}</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {(order.numbers || []).slice(0, 10).map(num => (
+                          <span key={num} className="text-[9px] font-mono text-amber-500/80 font-bold">{num}</span>
+                        ))}
+                        {order.numbers.length > 10 && <span className="text-[9px] text-zinc-600">...</span>}
+                      </div>
+                    </div>
+                    
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-[8px] font-black uppercase tracking-widest border border-green-500/20">Pago</span>
+                      <span className="text-[9px] font-mono text-zinc-600 block">{order.numbers.length} {order.numbers.length === 1 ? 'Cota' : 'Cotas'}</span>
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="py-10 text-center text-zinc-600 text-[11px] font-medium border border-dashed border-zinc-800/50 rounded-2xl">
+                Aguardando as primeiras aprovações...
               </div>
             )}
           </div>
@@ -1909,7 +1907,7 @@ function AdminPanel({
               <label className="text-xs font-semibold text-zinc-400">Chave PIX Cadastrada</label>
               <input
                 type="text"
-                placeholder="Chave Celular/CPF..."
+                placeholder="Chave Pix (E-mail, Celular, etc)..."
                 value={campaign.pixKey}
                 onChange={(e) => setCampaign({ ...campaign, pixKey: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-800 py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-amber-500/80 transition font-mono"
@@ -2077,8 +2075,7 @@ function AdminPanel({
                     </span>
                     <h4 className="text-base font-black text-white">{order.name}</h4>
                     <p className="text-xs text-zinc-400 flex flex-wrap gap-x-3 gap-y-1 font-mono">
-                      <span>CPF: {order.cpf}</span>
-                      <span>Whats: {order.whatsapp}</span>
+                      <span>WhatsApp: {order.whatsapp}</span>
                     </p>
                   </div>
 

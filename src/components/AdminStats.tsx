@@ -20,7 +20,7 @@ export function AdminStats({ orders, campaign, onPurgeLocalStorage }: AdminStats
     const uniqueParticipantsSet = new Set<string>();
 
     orders.forEach((o) => {
-      uniqueParticipantsSet.add(o.cpf);
+      uniqueParticipantsSet.add(o.whatsapp);
       if (o.status === "approved") {
         approvedTotal += o.amount || 0;
         (o.numbers || []).forEach((num) => acceptedNumbersSet.add(num));
@@ -109,7 +109,7 @@ export function AdminStats({ orders, campaign, onPurgeLocalStorage }: AdminStats
             {stats.uniqueParticipants}
           </p>
           <div className="text-[10px] text-zinc-500 font-mono">
-            Compradores com CPFs cadastrados
+            Compradores com números cadastrados
           </div>
         </div>
       </div>
